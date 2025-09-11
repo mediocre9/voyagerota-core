@@ -1,0 +1,9 @@
+node_modules/
+.vscode
+.env.development
+.env
+logs
+dump
+sandbox
+google-oauth20.json
+src/views
