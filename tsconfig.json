@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0", // change later........
     "module": "es2022",
     "strict": true,
     "moduleResolution": "Bundler",
@@ -10,6 +11,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "baseUrl": "src",
     "paths": {
       "@services/*": ["services/*"],
@@ -20,12 +22,14 @@
       "@queues/*": ["queues/*"],
       "@workers/*": ["workers/*"],
       "@schemas/*": ["schemas/*"],
-      "@router/*": ["router/*"],
-      "@dal/*": ["dal/*"]
+      "@types/*": ["types/*"],
+      "@routes/*": ["routes/*"],
+      "@dal/*": ["dal/*"],
+      "@cron/*": ["cron/*"]
     },
     "noImplicitAny": true,
     "noImplicitReturns": true
   },
-  "include": ["src/**/*", "jest.config.js", "__tests__", "sandbox", "env.d.ts"],
+  "include": ["src/**/*", "jest.config.js", "__tests__", "sandbox", "env.d.ts", "scripts"],
   "exclude": ["node_modules", "**/node_modules/*"]
 }
