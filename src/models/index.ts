@@ -1,18 +1,16 @@
-import { db } from "../config/db";
-import { User } from "./user";
-import { Project } from "./project";
-import { Release } from "./release";
-import { Device } from "./device";
+import { db } from "../config/db.config";
+import { User } from "./user.model";
+import { Project } from "./project.model";
+import { Release } from "./release.model";
 import { Logger } from "@utils/logger";
+import { ArtifactFile } from "./artifact.model";
 
 Project.belongsTo(User, { foreignKey: "user_id_fk" });
 User.hasMany(Project, { foreignKey: "user_id_fk" });
-
 Release.belongsTo(Project, { foreignKey: "project_id_fk" });
 Project.hasMany(Release, { foreignKey: "project_id_fk" });
-
-Device.belongsTo(Project, { foreignKey: "project_id_fk" });
-Project.hasMany(Device, { foreignKey: "project_id_fk" });
+Release.hasMany(ArtifactFile, { foreignKey: "release_id_fk" });
+ArtifactFile.belongsTo(Release, { foreignKey: "release_id_fk" });
 
 try {
   await db.sync();
@@ -21,6 +19,7 @@ try {
   if (typeof error === "string") {
     Logger.error(error);
   }
+  console.log(error);
 }
 
-export { User, Project, Release, Device };
+export { User, Project, Release, ArtifactFile };
