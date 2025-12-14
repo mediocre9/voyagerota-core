@@ -7,3 +7,5 @@ dump
 sandbox
 google-oauth20.json
 src/views
+*.logs
+storage/*.bin
