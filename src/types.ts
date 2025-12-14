@@ -1,105 +1,71 @@
-import { Session } from "express-session";
-import { z } from "zod";
-import { Request } from "express";
-import passport from "passport";
+import { Project } from "@models/project.model";
+import { Release, ReleaseAttributesDTO } from "@models/release.model";
+import { TaskStatus } from "@services/artifact.queue.service";
+import { Nullable } from "@utils/utils";
 
-export interface VoyagerRequest<
-  TRequest = undefined,
-  TResponse = undefined,
-  TBody = undefined,
-  TQueryParams = undefined
-> extends Request<TRequest, TResponse, TBody, TQueryParams> {
-  session: Session & {
-    user?: UserBaseDTO;
-    passport?: passport.SessionStrategy & {
-      user?: UserGoogleOAuthDTO;
-    };
+type StatusResponse = {
+  status: {
+    reason: string;
+    code: number;
   };
+};
+
+export type ReleaseArtifactCreationResponse = {
+  message: string;
+} & StatusResponse;
+
+export type ArtifactTaskCreationResponse = {
+  task: TaskStatus;
+} & StatusResponse;
+
+export type ReleaseListArtifactsResponse = {
+  releases: readonly ReleaseAttributesDTO[];
+} & StatusResponse;
+
+export type LatestReleaseArtificatResponse = {
+  release: Nullable<Release> | string;
+} & StatusResponse;
+
+export interface ProjectData {
+  publicId: string;
+  name: string;
+  secretKey: string;
 }
 
-export type Nullable<T> = T | null;
+export type ProjectCreationResponse = {
+  project: ProjectData;
+  board: "ESP32" | "ESP8266";
+} & StatusResponse;
 
-export type NullableOrUndefined<T> = T | null | undefined;
+export type ProjectListResponse = {
+  projects: readonly Project[];
+} & StatusResponse;
 
-export const DeviceSchema = z.object({
-  project_id: z
-    .string({
-      error: (issue) => {
-        if (issue.code === "invalid_type") {
-          return "project_id is required";
-        }
-        return "Invalid project_id format";
-      },
-    })
-    .min(1, { message: "project_id cannot be empty" })
-    .regex(/^[a-zA-Z0-9_-]{21}$/, { message: "Invalid project_id format" }),
+export type ProjectDeletedResponse = {
+  message: string;
+} & StatusResponse;
 
-  mac_address: z
-    .string({
-      error: (issue) => {
-        if (issue.code === "invalid_type") {
-          return "mac_address is required";
-        }
-        return "Invalid MAC-Address format";
-      },
-    })
-    .min(1, { message: "mac_address cannot be empty" })
-    .regex(/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/, { message: "Invalid MAC-Address format" }),
-});
+export type DeviceRegistryResponse = {
+  message: string;
+} & StatusResponse;
 
-export const UserBaseSchema = z.object({
-  publicID: z.nanoid("invalid user_id format!"),
-  email: z.email(),
-  username: z.string(),
-});
+export type TelemetryUserAuthResponse = {
+  message: string;
+  payload: {
+    username: string;
+    password: string;
+  };
+} & StatusResponse;
 
-export const UserSignUpSchema = z.object({
-  email: z.email(),
-  username: z.string(),
-  password: z.string("Password length should be 8 characters long!").min(8),
-});
+export type TelemetryRegistryResponse = {
+  publicId: string;
+  message: string;
+} & StatusResponse;
 
-export const UserLoginSchema = z.object({
-  email: z.email(),
-  password: z.string("Password length should be 8 characters long!").min(8),
-});
+export type TelemetryTopicCreationResponse = {
+  message: string;
+} & StatusResponse;
 
-export const UserGoogleOAuthSchema = z.object({
-  email: z.email(),
-  publicID: z.nanoid("invalid user_id format!"),
-  username: z.string(),
-  googleID: z.string(),
-});
-
-export const UserVerificationOtpSchema = z.object({
-  email: z.email(),
-  username: z.string(),
-  code: z.string().min(6).max(6),
-});
-
-export type Board = { type: "ESP32" | "ESP8266" };
-
-export const ProjectSchema = z.object({
-  projectName: z.string(),
-  boardType: z
-    .object({
-      type: z.enum(["ESP32", "ESP8266"]),
-    })
-    .default({ type: "ESP32" }),
-});
-
-export const ReleaseSchema = z.object({
-  projectId: z.nanoid("invalid project_id format!"),
-  version: z.string("version is required"),
-  filename: z.string().optional(),
-  changeLog: z.string().optional().default("What's New"),
-});
-
-export type ProjectDTO = z.infer<typeof ProjectSchema>;
-export type DeviceDTO = z.infer<typeof DeviceSchema>;
-export type ReleaseDTO = z.infer<typeof ReleaseSchema>;
-export type UserBaseDTO = z.infer<typeof UserBaseSchema>;
-export type UserSignUpDTO = z.infer<typeof UserSignUpSchema>;
-export type UserLoginDTO = z.infer<typeof UserLoginSchema>;
-export type UserGoogleOAuthDTO = z.infer<typeof UserGoogleOAuthSchema>;
-export type UserVerificationOtpDTO = z.infer<typeof UserVerificationOtpSchema>;
+export type TelemetryTopicUpdateResponse = {
+  message: string;
+} & StatusResponse;
