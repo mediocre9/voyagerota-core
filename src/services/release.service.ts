@@ -144,7 +144,7 @@ export class ArtifactReleaseService {
     const isEmpty = await this._cache.isEmpty(uniqueKey);
     if (!isEmpty) {
       const cachedRelease = JSON.parse(await this._cache.get(uniqueKey)) as ReleaseAttributesDTO;
-      Logger.info(`Release: ${cachedRelease.id} cache hit!`);
+      Logger.info(`Release: ${uniqueKey} cache hit!`);
       return cachedRelease;
     }
 
@@ -159,7 +159,7 @@ export class ArtifactReleaseService {
     }
 
     await this._cache.add(uniqueKey, JSON.stringify(release.toDTO()));
-    Logger.info(`${projectId} added to cache!`);
+    Logger.info(`${uniqueKey} added to cache!`);
 
     return release.toDTO();
   }
@@ -200,9 +200,9 @@ export class ArtifactReleaseService {
     await ReleaseDAL.setProductionReleaseDate(releaseId);
 
     // evicting project's latest stale release from cache.....
-    if (!(await this._cache.isEmpty(project.public_id!))) {
-      const projectId = project.public_id;
-      const uniqueKey = projectId!.concat(":").concat(status);
+    const projectId = project.public_id;
+    const uniqueKey = projectId!.concat(":").concat("staging");
+    if (!(await this._cache.isEmpty(uniqueKey))) {
       await this._cache.evict(uniqueKey);
       Logger.info(`${uniqueKey} evicted from cache!`);
     }
