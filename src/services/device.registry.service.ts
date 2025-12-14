@@ -1,11 +1,12 @@
-import * as uuid from "uuid";
 import * as DeviceDAL from "@dal/device.dal";
 import * as ProjectDAL from "@dal/project.dal";
-import { Logger } from "@utils/logger";
-import { StatusCodes } from "http-status-codes";
-import { DeviceDTO, DeviceSchema, NullableOrUndefined } from "schemas";
+import { DeviceDTO, DeviceSchema } from "@schemas/device.schema";
 import { ApiError } from "@utils/error";
+import { Logger } from "@utils/logger";
 import { measurePerfomanceAsync } from "@utils/performance";
+import { NullableOrUndefined } from "@utils/utils";
+import { StatusCodes } from "http-status-codes";
+import * as uuid from "uuid";
 
 export class DeviceRegistryService {
   public async registerDevice(payload: DeviceDTO): Promise<void> {
