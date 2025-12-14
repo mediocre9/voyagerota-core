@@ -1,14 +1,9 @@
-import { DeviceRegistryService } from "@services/device-registry";
-import { NextFunction, Response } from "express";
+import { DeviceRegistryService } from "@services/device.registry.service";
+import { NextFunction, Response, Request } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import { injectable, inject } from "tsyringe";
-import { DeviceDTO, VoyagerRequest } from "types";
-
-interface DeviceRegistryResponse {
-  message: string;
-  code: number;
-  reason: string;
-}
+import { DeviceDTO } from "@schemas/device.schema";
+import { DeviceRegistryResponse } from "types";
 
 @injectable()
 export class DeviceController {
@@ -17,16 +12,18 @@ export class DeviceController {
   ) {}
 
   public async registerDevice(
-    request: VoyagerRequest<null, null, DeviceDTO>,
+    request: Request<null, null, DeviceDTO>,
     response: Response<DeviceRegistryResponse>,
     next: NextFunction
   ): Promise<void> {
     try {
       await this._deviceRegistry.registerDevice(request.body);
-      response.status(201).json({
+      response.status(StatusCodes.CREATED).json({
         message: "Device registered successfully!",
-        code: StatusCodes.CREATED,
-        reason: getReasonPhrase(StatusCodes.CREATED),
+        status: {
+          code: StatusCodes.CREATED,
+          reason: getReasonPhrase(StatusCodes.CREATED),
+        },
       });
     } catch (error) {
       next(error);
@@ -34,16 +31,18 @@ export class DeviceController {
   }
 
   public async authenticate(
-    request: VoyagerRequest<null, null, null, DeviceDTO>,
+    request: Request<null, null, null, DeviceDTO>,
     response: Response<DeviceRegistryResponse>,
     next: NextFunction
-  ) {
+  ): Promise<void> {
     try {
       await this._deviceRegistry.authenticate(request.query);
       response.status(StatusCodes.OK).json({
         message: "Device Authenticated!",
-        reason: getReasonPhrase(StatusCodes.OK),
-        code: StatusCodes.OK,
+        status: {
+          code: StatusCodes.OK,
+          reason: getReasonPhrase(StatusCodes.OK),
+        },
       });
     } catch (error) {
       next(error);
