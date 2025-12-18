@@ -14,7 +14,7 @@ export class ArtifactTaskService {
     private readonly _queue: ArtifactQueueService
   ) {}
 
-  async createTask(dto: ArtifactTaskDTO): Promise<TaskCreatedData> {
+  public async createTask(dto: ArtifactTaskDTO): Promise<TaskCreatedData> {
     const { releaseId, filename } = dto;
 
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
@@ -40,7 +40,7 @@ export class ArtifactTaskService {
     return job;
   }
 
-  async getTaskStatus(jobId: string): Promise<TaskStatus> {
+  public async getTaskStatus(jobId: string): Promise<TaskStatus> {
     const job = await this._queue.getJob(jobId);
 
     if (!job) {

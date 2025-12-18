@@ -16,7 +16,7 @@ import { injectable } from "tsyringe";
 
 @injectable()
 export class ProjectService {
-  async createProject(payload: ProjectDTO): Promise<Project> {
+  public async createProject(payload: ProjectDTO): Promise<Project> {
     const { userId, projectName, boardType } = await ProjectSchema.parseAsync(payload);
 
     const user = await UserDAL.findUserByPublicId(userId);
@@ -39,7 +39,7 @@ export class ProjectService {
   }
 
   // TODO get all user projects with pagination......
-  async getAllProjects(queryParam: UserIdQueryParam): Promise<readonly Project[]> {
+  public async getAllProjects(queryParam: UserIdQueryParam): Promise<readonly Project[]> {
     const { userId } = await UserIdQueryParamSchema.parseAsync(queryParam);
 
     const user = await UserDAL.findUserByPublicId(userId);
@@ -51,7 +51,7 @@ export class ProjectService {
     return await ProjectDAL.findProjectsByUserId(user.id!);
   }
 
-  async softDeleteProject(queryParam: ProjectIdQueryParam): Promise<void> {
+  public async softDeleteProject(queryParam: ProjectIdQueryParam): Promise<void> {
     const { projectId } = await ProjectIdQueryParamSchema.parseAsync(queryParam);
     const project = await ProjectDAL.findProjectByPublicId(projectId);
 

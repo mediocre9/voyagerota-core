@@ -14,11 +14,11 @@ export class CacheService {
     return (await this.get(key)) === null;
   }
 
-  async get(key: string): Promise<string> {
+  public async get(key: string): Promise<string> {
     return (await redis.get(key))!;
   }
 
-  async evict(key: string): Promise<void> {
+  public async evict(key: string): Promise<void> {
     await redis.del(key);
   }
 }

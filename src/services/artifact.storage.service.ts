@@ -59,7 +59,7 @@ export class ArtifactStorageService {
     Logger.info("File deleted!");
   }
 
-  async getBinaryFilePath(params: ReleaseArtifactIdPathParams) {
+  public async getBinaryFilePath(params: ReleaseArtifactIdPathParams) {
     const { releaseId, artifactId } = params;
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
     if (!release) {
@@ -133,7 +133,7 @@ export class ArtifactStorageService {
     }
   }
 
-  async deleteBinaryFromStorage(filename: string): Promise<void> {
+  public async deleteBinaryFromStorage(filename: string): Promise<void> {
     const fileStoragePath = path.join(import.meta.dirname, "..", "..", "storage", filename);
 
     try {

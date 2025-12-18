@@ -5,7 +5,7 @@ import * as crypto from "node:crypto";
 import * as FileSignatureQueue from "./artifact.queue";
 
 class DigitalSignature {
-  static generateKeys(): crypto.KeyPairSyncResult<string, string> {
+  public static generateKeys(): crypto.KeyPairSyncResult<string, string> {
     return crypto.generateKeyPairSync("rsa", {
       modulusLength: 768,
       privateKeyEncoding: {
@@ -21,7 +21,7 @@ class DigitalSignature {
     } as crypto.RSAPSSKeyPairOptions<"pem", "pem">);
   }
 
-  static createSignature(privateKey: string, hash: string): string {
+  public static createSignature(privateKey: string, hash: string): string {
     const signer = crypto.createSign("SHA256");
     signer.write(hash);
     signer.end();
