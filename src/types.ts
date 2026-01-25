@@ -1,7 +1,7 @@
-import { Project } from "@models/project.model";
 import { Release, ReleaseAttributesDTO } from "@models/release.model";
 import { TaskStatus } from "@services/artifact.queue.service";
-import { Nullable } from "@utils/utils";
+import { ProjectDTOFields } from "@services/project.service";
+import { Nullable } from "@interfaces/common/common";
 
 type StatusResponse = {
   status: {
@@ -38,7 +38,7 @@ export type ProjectCreationResponse = {
 } & StatusResponse;
 
 export type ProjectListResponse = {
-  projects: readonly Project[];
+  projects: readonly ProjectDTOFields[];
 } & StatusResponse;
 
 export type ProjectDeletedResponse = {
