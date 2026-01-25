@@ -1,56 +1,111 @@
+import { db } from "@config/db.config";
 import { redis as RedisConnection } from "@config/redis.connection.config";
+import * as ArtifactDAL from "@dal/artifact.dal";
+import * as ReleaseDAL from "@dal/release.dal";
+import { ArtifactBuildStatus } from "@models/artifact.model";
+import { FileStorageOperation } from "@utils/common";
 import { Logger } from "@utils/logger";
-import { Job, Worker } from "bullmq";
-import * as crypto from "node:crypto";
-import * as FileSignatureQueue from "./artifact.queue";
+import { computeElapsedTimeAsync } from "@utils/performance";
+import { Worker as ArtifactInspectionWorker, Job } from "bullmq";
+import * as fsSync from "node:fs";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import * as ArtifactQueue from "./artifact.queue";
 
-class DigitalSignature {
-  public static generateKeys(): crypto.KeyPairSyncResult<string, string> {
-    return crypto.generateKeyPairSync("rsa", {
-      modulusLength: 768,
-      privateKeyEncoding: {
-        format: "pem",
-        type: "pkcs8",
-        passphrase: "signature-secret", // !put it in .env later....
-        cipher: "aes-256-cbc",
-      },
-      publicKeyEncoding: {
-        format: "pem",
-        type: "spki",
-      },
-    } as crypto.RSAPSSKeyPairOptions<"pem", "pem">);
+const ___VYGR_DEVELOPMENT_TOKEN___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
+const ___VYGR_PRODUCTION_TOKEN___ = "$2y$10$DX0bqDwfQtWJkBPgiXHVqOcbjOoX5i9cRHxSTgK3xgjTHpy5EGNbO";
+
+const token = new Map<ArtifactBuildStatus, string>([
+  ["development-build", ___VYGR_DEVELOPMENT_TOKEN___],
+  ["production-build", ___VYGR_PRODUCTION_TOKEN___],
+]);
+
+async function _inspectFileForBuildStatus(
+  job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
+): Promise<ArtifactBuildStatus> {
+  const pathToFile = path.join(FileStorageOperation.DEFAULT_FILE_STORAGE_PATH, job.data.filename);
+  const contents = await fs.readFile(pathToFile, { encoding: "ascii" });
+
+  let status: ArtifactBuildStatus = "unknown-build";
+  if (contents.includes(token.get("development-build")!)) {
+    status = "development-build";
+  } else if (contents.includes(token.get("production-build")!)) {
+    status = "production-build";
   }
+  return status;
+}
 
-  public static createSignature(privateKey: string, hash: string): string {
-    const signer = crypto.createSign("SHA256");
-    signer.write(hash);
-    signer.end();
+function _getBuildStatusMessage(status: ArtifactBuildStatus): string {
+  const message: Record<ArtifactBuildStatus, string> = {
+    "production-build": "Release has been promoted to staging state!",
+    "development-build": "Development build detected! Only production build is allowed!",
+    "unknown-build": "Unknown build type detected! Only production build is allowed!",
+  };
 
-    const signature = signer.sign({ key: privateKey, passphrase: "signature-secret" }, "hex");
-    return signature;
+  return message[status];
+}
+
+async function _markReleaseAsStaging(
+  job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
+  status: ArtifactBuildStatus,
+): Promise<void> {
+  if (status === "production-build") {
+    const transaction = await db.transaction();
+    try {
+      await ArtifactDAL.updateArtifactStatus(
+        job.data.releaseInternalId,
+        job.data.filename,
+        status,
+        transaction,
+      );
+      await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "staging", transaction);
+      await transaction.commit();
+      Logger.info("Release has been promoted to staging state!");
+    } catch (error) {
+      await transaction.rollback();
+      Logger.error(error as string);
+      throw error;
+    }
   }
 }
 
-const worker = new Worker(
-  FileSignatureQueue.ARTIFACT_QUEUE_NAME,
+const worker = new ArtifactInspectionWorker(
+  ArtifactQueue.ARTIFACT_QUEUE_NAME,
   async (
-    job: Job<FileSignatureQueue.QueueInputData, FileSignatureQueue.QueueOutputData>
-  ): Promise<FileSignatureQueue.QueueOutputData> => {
-    const { privateKey, publicKey } = DigitalSignature.generateKeys();
-    const signature = DigitalSignature.createSignature(privateKey, job.data.hash);
+    job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
+  ): Promise<ArtifactQueue.TaskOutputData> => {
+    const status = await _inspectFileForBuildStatus(job);
 
-    const output: FileSignatureQueue.QueueOutputData = {
-      id: job.id!,
-      releaseId: job.data.releaseId,
-      signature,
-      publicKey,
+    const elapsedTime = await computeElapsedTimeAsync(async () => {
+      await _markReleaseAsStaging(job, status);
+    });
+
+    const FILE_STORAGE_PATH = path.join(
+      FileStorageOperation.DEFAULT_FILE_STORAGE_PATH,
+      job.data.filename,
+    );
+
+    const isNotProdBuild = status !== "production-build" && fsSync.existsSync(FILE_STORAGE_PATH);
+    if (isNotProdBuild) {
+      await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, null, true);
+      await FileStorageOperation.removePermanently(job.data.filename, "storage");
+      Logger.info(`${status} - ${job.data.filename} has been permanently removed from worker!`);
+    }
+
+    const message = _getBuildStatusMessage(status);
+    const result = {
+      artifactId: job.data.artifactId,
+      artifactStatus: status === "production-build" ? "accepted" : "rejected",
+      detectedBinary: status,
+      message: message,
+      elapsedTime: elapsedTime / 1000, // in seconds......
     };
 
-    return Promise.resolve(output);
+    return result as ArtifactQueue.TaskOutputData;
   },
   {
     limiter: {
-      max: 50, // should be later consider at prod....
+      max: 50, // should be later consider in prod....
       duration: 60 * 1000, // same with this....
     },
     connection: RedisConnection,
@@ -64,15 +119,15 @@ const worker = new Worker(
       age: 24 * 3600,
       count: 5000,
     },
-  }
+  },
 );
 
 worker.on("ready", () => {
   Logger.info("worker started!");
 });
 
-worker.on("active", () => {
-  Logger.info("worker processing now!");
+worker.on("active", (job, _) => {
+  Logger.info(`job: ${job.id} is being processed!`);
 });
 
 worker.on("error", (error) => {
@@ -83,6 +138,6 @@ worker.on("failed", (_, error) => {
   Logger.error(error.message);
 });
 
-worker.on("completed", () => {
-  Logger.info("worker completed!");
+worker.on("completed", (job, _) => {
+  Logger.info(`job: ${job.id} has been processed for ${job.data.filename}`);
 });
