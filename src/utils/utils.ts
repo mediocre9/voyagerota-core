@@ -1,21 +1,9 @@
-import otp from "otp-generator";
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import * as semver from "semver";
 import { uniqueNamesGenerator, adjectives, colors } from "unique-names-generator";
 import { spaceNames } from "./space-dictionary-names";
 import { log } from "node:console";
-
-export type Nullable<T> = T | null;
-export type NullableOrUndefined<T> = T | null | undefined;
-
-/**
- *
- * @todo **FADI MOVE THIS TO SOMEWHERE ELSE, NOT IN UTILS......**
- */
-export function isDevEnvironment(): boolean {
-  return process.env.NODE_ENV === "development";
-}
 
 /**
  * @deprecated This function has been deprecated.
@@ -56,17 +44,6 @@ export function getNormalizedVersion(version: string): number {
   chunks[2] = chunks[2].padStart(PADDING_SIZE, "0");
   const normalized = chunks.join("");
   return parseInt(normalized);
-}
-
-export function generateOTPCode(length: number = 6): string {
-  const code: string = otp.generate(length, {
-    digits: true,
-    lowerCaseAlphabets: false,
-    upperCaseAlphabets: false,
-    specialChars: false,
-  });
-
-  return code;
 }
 
 export function generateRandomSpaceUsername(): string {
