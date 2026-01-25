@@ -18,13 +18,5 @@ export const ProjectIdQueryParamSchema = z.object({
   projectId: z.string("projectId is required!").nonempty("projectId field is empty!").trim(),
 });
 
-export const ProjectIdPathParamSchema = z.object({
-  projectId: z
-    .string("projectId path param is required!")
-    .nonempty("projectId path param is empty!")
-    .trim(),
-});
-
 export type ProjectIdQueryParam = z.infer<typeof ProjectIdQueryParamSchema>;
-export type ProjectIdPathParam = z.infer<typeof ProjectIdPathParamSchema>;
 export type ProjectDTO = z.infer<typeof ProjectSchema>;
