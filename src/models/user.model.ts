@@ -17,11 +17,32 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare email: string;
   declare picture_url?: string;
   declare password?: string;
-  declare is_mfa_enabled?: boolean;
-  declare is_verified?: boolean;
-  declare mfa_secret?: string;
   declare is_revoked?: boolean;
   declare deleted_at: CreationOptional<Date>;
+
+  getId() {
+    return this.getDataValue("id")!;
+  }
+
+  getPublicId() {
+    return this.getDataValue("public_id")!;
+  }
+
+  getUsername() {
+    return this.getDataValue("username");
+  }
+
+  getEmail() {
+    return this.getDataValue("email");
+  }
+
+  getPassword() {
+    return this.getDataValue("password");
+  }
+
+  isRevoked() {
+    return this.getDataValue("is_revoked");
+  }
 }
 
 User.init(
@@ -68,20 +89,6 @@ User.init(
         min: 8,
       },
     },
-    is_mfa_enabled: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
-      allowNull: true,
-    },
-    is_verified: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
-      allowNull: true,
-    },
-    mfa_secret: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
     is_revoked: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
@@ -101,7 +108,7 @@ User.init(
     tableName: "users",
     paranoid: true,
     deletedAt: "deleted_at",
-  }
+  },
 );
 
 User.beforeCreate(async (user) => {
