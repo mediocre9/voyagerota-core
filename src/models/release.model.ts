@@ -7,15 +7,16 @@ import {
   Model,
   NonAttribute,
 } from "sequelize";
-import { ArtifactFile } from "./artifact.model";
+import { Artifact } from "./artifact.model";
 import { Project } from "./project.model";
 
-export type ReleaseStatus = "draft" | "staging" | "production";
+export type ReleaseChannel = "draft" | "staging" | "production" | "revoked";
 
 export interface ArtifactDTO {
   id: string;
   filename: string;
   size: number;
+  prettySize?: string;
   hash: string;
 }
 
@@ -23,7 +24,7 @@ export interface ReleaseAttributesDTO {
   id: string;
   version: string;
   changeLog: string;
-  status: ReleaseStatus;
+  channel: ReleaseChannel;
   createdAt: Date;
   releasedAt?: Date | null;
   artifact?: ArtifactDTO;
@@ -33,30 +34,78 @@ export class Release extends Model<InferAttributes<Release>, InferCreationAttrib
   declare id?: number;
   declare project_id_fk?: number;
   declare public_id?: string;
-  declare version: string;
+  declare version?: string;
   declare flatten_version?: number;
   declare change_log?: string;
-  declare status?: ReleaseStatus;
+  declare channel?: ReleaseChannel;
   declare deleted_at: Date | null;
   declare created_at: Date | null;
   declare released_at: Date | null;
-  declare ArtifactFiles?: ArtifactFile[];
+  declare Artifacts?: Artifact[];
+
+  getId() {
+    return this.getDataValue("id")!;
+  }
+
+  getProjectForeignKeyId() {
+    return this.getDataValue("project_id_fk")!;
+  }
+
+  getVersion() {
+    return this.getDataValue("version")!;
+  }
+
+  getFlattenedVersion() {
+    return this.getDataValue("flatten_version")!;
+  }
+
+  getChannel() {
+    return this.getDataValue("channel")!;
+  }
+
+  isDraft() {
+    return this.getDataValue("channel")! === "draft";
+  }
+
+  isProduction() {
+    return this.getDataValue("channel")! === "production";
+  }
+
+  isRevoked() {
+    return this.getDataValue("channel")! === "revoked";
+  }
+
+  isStaging() {
+    return this.getDataValue("channel")! === "staging";
+  }
+
+  getPublicId() {
+    return this.getDataValue("public_id")!;
+  }
+
+  getChangeLog() {
+    return this.getDataValue("change_log")!;
+  }
+
+  getReleaseArtifacts() {
+    return this.getDataValue("Artifacts");
+  }
 
   toDTO(): NonAttribute<ReleaseAttributesDTO> {
     return {
       id: this.getDataValue("public_id")!,
-      status: this.getDataValue("status")!,
-      version: this.getDataValue("version"),
+      channel: this.getDataValue("channel")!,
+      version: this.getDataValue("version")!,
       changeLog: this.getDataValue("change_log")!,
       createdAt: this.getDataValue("created_at")!,
       releasedAt: this.getDataValue("released_at") ?? null,
       artifact:
-        this.ArtifactFiles && this.ArtifactFiles[0]
+        this.Artifacts && this.Artifacts[0]
           ? {
-              id: this.ArtifactFiles[0].public_id!,
-              filename: this.ArtifactFiles[0].filename!,
-              size: this.ArtifactFiles[0].size!,
-              hash: this.ArtifactFiles[0].hash!,
+              id: this.Artifacts[0].public_id!,
+              filename: this.Artifacts[0].original_filename!,
+              size: this.Artifacts[0].size!,
+              hash: this.Artifacts[0].hash!,
             }
           : undefined,
     };
@@ -97,8 +146,8 @@ Release.init(
       allowNull: true,
       defaultValue: "## What's New",
     },
-    status: {
-      type: DataTypes.ENUM("draft", "staging", "production"),
+    channel: {
+      type: DataTypes.ENUM("draft", "staging", "production", "revoked"),
       defaultValue: "draft",
       allowNull: true,
     },
@@ -123,5 +172,5 @@ Release.init(
     tableName: "releases",
     paranoid: true,
     deletedAt: "deleted_at",
-  }
+  },
 );
