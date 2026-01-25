@@ -1,6 +1,7 @@
 node_modules/
 .vscode
-.env.*
+.env.development
+.env
 logs
 dump
 sandbox
@@ -8,5 +9,3 @@ google-oauth20.json
 src/views
 *.logs
 storage/*.bin
-dist
-oauth-client-secret.json
