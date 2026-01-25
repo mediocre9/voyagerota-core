@@ -1,12 +1,12 @@
-import { Device } from "@models/device.model";
+import { DeviceOTAStatus } from "@models/device.model";
 import { Op } from "sequelize";
 
 export async function registerDevice(projectId: number, macAddress: string): Promise<void> {
-  await Device.create({ project_id_fk: projectId, mac_address: macAddress });
+  await DeviceOTAStatus.create({ project_id_fk: projectId, mac_address: macAddress });
 }
 
 export async function isDeviceRegistered(projectId: number, macAddress: string): Promise<boolean> {
-  const device = await Device.findOne({
+  const device = await DeviceOTAStatus.findOne({
     where: { [Op.and]: { mac_address: macAddress, project_id_fk: projectId } },
   });
 
@@ -16,9 +16,9 @@ export async function isDeviceRegistered(projectId: number, macAddress: string):
 export async function removeDevice(
   projectId: number,
   macAddress: string,
-  forceDelete: boolean = false
+  forceDelete: boolean = false,
 ): Promise<boolean> {
-  const removedNumOfRows = await Device.destroy({
+  const removedNumOfRows = await DeviceOTAStatus.destroy({
     where: { [Op.and]: { project_id_fk: projectId, mac_address: macAddress } },
     force: forceDelete,
   });
@@ -28,9 +28,9 @@ export async function removeDevice(
 
 export async function paginateDevicesList(
   projectId: number,
-  offset: number = 0
-): Promise<readonly Device[]> {
-  const devices = await Device.findAll({
+  offset: number = 0,
+): Promise<readonly DeviceOTAStatus[]> {
+  const devices = await DeviceOTAStatus.findAll({
     where: {
       project_id_fk: projectId,
     },
