@@ -1,11 +1,12 @@
+import { Logger } from "@utils/logger";
 import { Redis } from "ioredis";
 
 export const redis = new Redis({ maxRetriesPerRequest: null });
 
 redis.on("ready", () => {
-  console.log("Redis connection up!");
+  Logger.info("Redis connection up!");
 });
 
 redis.on("error", (error) => {
-  console.log("Redis Failed Error: ", error);
+  Logger.error("Redis Failed Error: %s", error.message);
 });
