@@ -46,7 +46,7 @@ export class MQTTBrokerService {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Basic ${Buffer.from(process.env.BROKER_BASIC_AUTH_CREDENTIALS).toString(
-          "base64"
+          "base64",
         )}`,
       },
     });
@@ -63,7 +63,7 @@ export class MQTTBrokerService {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Basic ${Buffer.from(process.env.BROKER_BASIC_AUTH_CREDENTIALS).toString(
-          "base64"
+          "base64",
         )}`,
       },
     });
@@ -72,7 +72,7 @@ export class MQTTBrokerService {
 
   public async createUser(
     username: string,
-    password: string
+    password: string,
   ): Promise<AxiosResponse<Pick<BrokerAuthDBResponse, "user_id">>> {
     const url = "/api/v5/authentication/password_based:built_in_database/users";
     const payload = JSON.stringify({ user_id: username, password: password });
@@ -83,7 +83,7 @@ export class MQTTBrokerService {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Basic ${Buffer.from(process.env.BROKER_BASIC_AUTH_CREDENTIALS).toString(
-          "base64"
+          "base64",
         )}`,
       },
     });
@@ -155,7 +155,7 @@ export class TelemetryRegistryService {
     if (isTelemetryEnabled) {
       throw new ApiError(
         "Telemetry Service is already enabled for this project!",
-        StatusCodes.CONFLICT
+        StatusCodes.CONFLICT,
       );
     }
 
@@ -177,7 +177,7 @@ export class TelemetryRegistryService {
     if (!isTelemetryEnabled) {
       throw new ApiError(
         "Telemetry Service is not enabled for this project!",
-        StatusCodes.FORBIDDEN
+        StatusCodes.FORBIDDEN,
       );
     }
 
