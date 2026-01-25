@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0", // change later........
+    "ignoreDeprecations": "6.0",
     "module": "es2022",
     "strict": true,
     "moduleResolution": "Bundler",
@@ -22,7 +22,8 @@
       "@queues/*": ["queues/*"],
       "@workers/*": ["workers/*"],
       "@schemas/*": ["schemas/*"],
-      "@types/*": ["types/*"],
+      "@interfaces/*": ["interfaces/*"],
+      "@middlewares/*": ["middlewares/*"],
       "@routes/*": ["routes/*"],
       "@dal/*": ["dal/*"],
       "@cron/*": ["cron/*"]
@@ -30,6 +31,6 @@
     "noImplicitAny": true,
     "noImplicitReturns": true
   },
-  "include": ["src/**/*", "jest.config.js", "__tests__", "sandbox", "env.d.ts", "scripts"],
+  "include": ["src/**/*", "jest.config.js", "__tests__", "sandbox", "env.d.ts"],
   "exclude": ["node_modules", "**/node_modules/*"]
 }
