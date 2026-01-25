@@ -12,10 +12,13 @@ export const UserSignUpSchema = z.object({
   password: z.string("Password length should be 8 characters long!").min(8),
 });
 
-export const UserLoginSchema = z.object({
-  email: z.email(),
-  password: z.string("Password length should be 8 characters long!").min(8),
-});
+export const UserLoginSchema = z.object(
+  {
+    email: z.email("email is required!").trim().nonempty("email cannot be empty!"),
+    password: z.string("password is required").trim().nonempty("password cannot be empty!"),
+  },
+  { error: "email and password is required!" },
+);
 
 export const UserGoogleOAuthSchema = z.object({
   email: z.email(),
