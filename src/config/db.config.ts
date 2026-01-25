@@ -1,15 +1,14 @@
 import { Logger } from "@utils/logger";
-
+import { isDevEnvironment } from "@utils/utils";
 import { Sequelize } from "sequelize";
-import { isDevEnvironment, EnvConfig } from "./config";
 
 export const db = new Sequelize({
-  port: EnvConfig.DB_PORT,
-  database: EnvConfig.DB_NAME,
-  host: EnvConfig.DB_HOST,
+  port: 3306,
+  database: "voyager_ota_dev",
+  host: "localhost",
   dialect: "mariadb",
-  username: EnvConfig.DB_USERNAME,
-  password: EnvConfig.DB_PASSWORD,
+  username: "root",
+  password: "123",
   pool: {
     max: 5,
     min: 0,
