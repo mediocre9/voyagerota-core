@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
-import { ProjectController } from "@controllers/web/project.controller";
+import { ProjectController } from "@controllers/project.controller";
 import express from "express";
 import { container } from "tsyringe";
 
 const projectController = container.resolve(ProjectController);
-export const projectWebRouter = express.Router();
+export const projectRouter = express.Router();
 
-projectWebRouter
+projectRouter
   .route("/")
   .get(projectController.getProjects.bind(projectController))
   .post(projectController.postProject.bind(projectController))
