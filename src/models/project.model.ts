@@ -9,7 +9,6 @@ import {
   InferCreationAttributes,
   Model,
 } from "sequelize";
-import { Release } from "./release.model";
 
 export class Project extends Model<InferAttributes<Project>, InferCreationAttributes<Project>> {
   declare id?: number;
@@ -19,39 +18,6 @@ export class Project extends Model<InferAttributes<Project>, InferCreationAttrib
   declare api_key?: string;
   declare board_type?: "ESP32" | "ESP8266";
   declare deleted_at?: CreationOptional<Date>;
-  declare Releases?: Release[];
-
-  getPublicId() {
-    return this.getDataValue("public_id")!;
-  }
-
-  getUserForeignKey() {
-    return this.getDataValue("user_id_fk")!;
-  }
-
-  getApiKey() {
-    return this.getDataValue("api_key")!;
-  }
-
-  getBoardType() {
-    return this.getDataValue("board_type")!;
-  }
-
-  getId() {
-    return this.getDataValue("id")!;
-  }
-
-  getDeletedAt() {
-    return this.getDataValue("deleted_at");
-  }
-
-  getProjectReleases() {
-    return this.Releases;
-  }
-
-  getProjectName() {
-    return this.getDataValue("project_name")!;
-  }
 }
 
 Project.init(
@@ -70,7 +36,7 @@ Project.init(
     },
     user_id_fk: {
       type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: User,
         key: "id",
@@ -108,5 +74,5 @@ Project.init(
     tableName: "projects",
     paranoid: true,
     deletedAt: "deleted_at",
-  },
+  }
 );
