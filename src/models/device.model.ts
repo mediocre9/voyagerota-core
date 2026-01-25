@@ -8,14 +8,17 @@ import {
 } from "sequelize";
 import { Project } from "./project.model";
 
-export class Device extends Model<InferAttributes<Device>, InferCreationAttributes<Device>> {
+export class DeviceOTAStatus extends Model<
+  InferAttributes<DeviceOTAStatus>,
+  InferCreationAttributes<DeviceOTAStatus>
+> {
   declare id?: number;
   declare project_id_fk?: number;
   declare mac_address: string;
   declare deleted_at: CreationOptional<Date>;
 }
 
-Device.init(
+DeviceOTAStatus.init(
   {
     id: {
       type: DataTypes.BIGINT.UNSIGNED,
@@ -48,7 +51,7 @@ Device.init(
     tableName: "devices",
     paranoid: true,
     deletedAt: "deleted_at",
-  }
+  },
 );
 
 /**
