@@ -1,9 +1,10 @@
 import { Project } from "@models/project.model";
-import { generateApiKey, Nullable } from "@utils/utils";
+import { generateApiKey } from "@utils/utils";
 import sequelize, { Transaction } from "sequelize";
 import { Op } from "sequelize";
+import { Nullable } from "interfaces/common/common";
 import { Release } from "@models/release.model";
-import { ArtifactFile } from "@models/artifact.model";
+import { Artifact } from "@models/artifact.model";
 
 export type ProjectData = {
   userId: number;
@@ -19,7 +20,7 @@ interface ArtifactAttributes {
 interface ReleaseAttributes {
   public_id: string;
   version: string;
-  status: string;
+  channel: string;
   ArtifactFiles?: ArtifactAttributes[];
 }
 
@@ -31,7 +32,7 @@ interface ProjectAttributes {
 }
 export async function isHashFoundAcrossReleases(
   projectId: number,
-  hash: string
+  hash: string,
 ): Promise<Nullable<ProjectAttributes>> {
   const found = await Project.findOne({
     where: { id: projectId },
@@ -39,11 +40,11 @@ export async function isHashFoundAcrossReleases(
     include: [
       {
         model: Release,
-        attributes: ["public_id", "version", "status"],
+        attributes: ["public_id", "version", "channel"],
         required: true,
         include: [
           {
-            model: ArtifactFile,
+            model: Artifact,
             attributes: ["public_id", "hash"],
             required: true,
             where: { hash: hash },
@@ -73,7 +74,7 @@ export async function rotateProjectApiKey(projectId: string): Promise<void> {
 
 export async function isProjectNameInUse(
   userId: number,
-  name: string
+  name: string,
 ): Promise<Readonly<Nullable<Project>>> {
   return await Project.findOne({
     attributes: { exclude: ["id"] },
@@ -83,34 +84,32 @@ export async function isProjectNameInUse(
 
 export async function findProjectsByUserId(userId: number): Promise<readonly Project[]> {
   return await Project.findAll({
-    attributes: {
-      exclude: [
-        "id",
-        "user_id_fk",
-        "public_id",
-        "project_name",
-        "api_key",
-        "board_type",
-        "created_at",
-        "updated_at",
-      ],
-      include: [
-        [sequelize.col("public_id"), "projectId"],
-        [sequelize.col("project_name"), "projectName"],
-        [sequelize.col("api_key"), "secretKey"],
-        [sequelize.col("board_type"), "board"],
-        [sequelize.col("created_at"), "createdAt"],
-      ],
-    },
+    include: [{ model: Release, as: "Releases" }],
+    order: [[sequelize.col("flatten_version"), "DESC"]],
     where: { user_id_fk: userId },
   });
 }
 
 export async function findProjectByPublicId(
-  publicID: string
+  publicID: string,
 ): Promise<Readonly<Nullable<Project>>> {
   return await Project.findOne({
     where: { public_id: publicID },
+  });
+}
+
+export async function findProjectByPublicIdAndApiKey(
+  publicID: string,
+  apiKey: string,
+): Promise<Readonly<Nullable<Project>>> {
+  return await Project.findOne({
+    where: { public_id: publicID, api_key: apiKey },
+  });
+}
+
+export async function findProjectByApiKey(apiKey: string): Promise<Readonly<Nullable<Project>>> {
+  return await Project.findOne({
+    where: { api_key: apiKey },
   });
 }
 
@@ -122,7 +121,7 @@ export async function findProjectByInternalId(id: number): Promise<Readonly<Null
 
 export async function deleteProject(
   projectId: number,
-  transactionObject?: Transaction
+  transactionObject?: Transaction,
 ): Promise<void> {
   await Project.destroy({
     where: { id: projectId },

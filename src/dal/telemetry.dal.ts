@@ -1,5 +1,5 @@
 import { Telemetry } from "@models/telemetry.model";
-import { Nullable } from "@utils/utils";
+import { Nullable } from "@interfaces/common/common";
 
 import { Op, Transaction } from "sequelize";
 
