@@ -25,7 +25,7 @@ export interface ReleaseAttributesDTO {
   version: string;
   changeLog: string;
   channel: ReleaseChannel;
-  createdAt: Date;
+  createdAt?: Date | null;
   releasedAt?: Date | null;
   artifact?: ArtifactDTO;
 }

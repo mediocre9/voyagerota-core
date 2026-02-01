@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { EnvConfig } from "@config/config";
 import { ProjectIdPathParam, ProjectIdPathParamSchema } from "@schemas/project.schema";
 import {
@@ -16,7 +17,9 @@ import { ArtifactReleaseService } from "@services/release.service";
 import { ApiError } from "@utils/error";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
+import prettyBytes from "pretty-bytes";
 import { inject, injectable } from "tsyringe";
+import * as marked from "marked";
 import { ReleaseArtifactCreationResponse, ReleaseListArtifactsResponse } from "types";
 
 @injectable()
@@ -177,19 +180,18 @@ export class ArtifactReleaseController {
       const release = await this._release.getLatestRelease(query, projectId, apiKey);
 
       const downloadURL = `${EnvConfig.BASE_URL}/internal/api/v1/releases/${release?.id}/artifacts/${release?.artifact?.id}/download`;
-
-      const updatedRelease = {
+      release!.artifact!.prettySize = prettyBytes(release!.artifact!.size);
+      release!.changeLog = await marked.marked(release!.changeLog);
+      delete release!.createdAt;
+      const releaseWithDownloadUrl = {
         ...release,
         artifact: {
           ...release?.artifact,
           downloadURL: downloadURL,
         },
       };
-
-      delete updatedRelease.createdAt;
-
       response.status(StatusCodes.OK).json({
-        release: updatedRelease,
+        release: releaseWithDownloadUrl,
         status: {
           reason: getReasonPhrase(StatusCodes.OK),
           code: StatusCodes.OK,
