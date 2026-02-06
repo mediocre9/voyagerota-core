@@ -8,14 +8,18 @@ import { ArtifactStorageService, upload } from "@services/artifact.storage.servi
 import { ArtifactInspectionQueue } from "@queues/artifact.queue";
 import { ArtifactInspectionTaskService } from "@services/artifact.task.service";
 import { ArtifactInspectionQueueService } from "@services/artifact.queue.service";
+import { DeviceStatusRegistryService } from "@services/device.registry.service";
+import { DeviceUpdateRegistryController } from "@controllers/api/device.controller";
 
 container.resolve(ArtifactInspectionQueueService);
 container.resolve(ArtifactInspectionTaskService);
 container.resolve(ArtifactInspectionQueue);
 container.resolve(ArtifactStorageService);
+container.resolve(DeviceStatusRegistryService);
 
 const releaseController = container.resolve(ArtifactReleaseController);
 const storageController = container.resolve(ArtifactStorageController);
+const deviceUpdateController = container.resolve(DeviceUpdateRegistryController);
 export const releaseApiRouter = express.Router();
 
 releaseApiRouter
@@ -57,3 +61,11 @@ deviceReleaseApiRouter
 deviceReleaseApiRouter
   .route("/latest")
   .get(releaseController.getLatestRelease.bind(releaseController));
+
+deviceReleaseApiRouter
+  .route("/:releaseId/status")
+  .post(deviceUpdateController.update.bind(deviceUpdateController));
+
+deviceReleaseApiRouter
+  .route("/:releaseId/devices/:macAddress/status")
+  .get(deviceUpdateController.checkStatus.bind(deviceUpdateController));
