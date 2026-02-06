@@ -1,28 +1,42 @@
-import { DeviceRegistryService } from "@services/device.registry.service";
+import { DeviceStatusRegistryService } from "@services/device.registry.service";
 import { NextFunction, Response, Request } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import { injectable, inject } from "tsyringe";
-import { DeviceDTO } from "@schemas/device.schema";
+import {
+  DeviceDTO,
+  DeviceSchema,
+  ReleaseIdMacAddressPathParamSchema,
+} from "@schemas/device.schema";
 import { DeviceRegistryResponse } from "types";
+import { ReleaseIdPathParam, ReleaseIdPathParamSchema } from "@schemas/release.schema";
 
 @injectable()
-export class DeviceController {
+export class DeviceUpdateRegistryController {
   constructor(
-    @inject(DeviceRegistryService) private readonly _deviceRegistry: DeviceRegistryService
+    @inject(DeviceStatusRegistryService)
+    private readonly _deviceStatusRegistry: DeviceStatusRegistryService,
   ) {}
 
-  public async registerDevice(
-    request: Request<null, null, DeviceDTO>,
-    response: Response<DeviceRegistryResponse>,
-    next: NextFunction
-  ): Promise<void> {
+  public async checkStatus(
+    request: Request<ReleaseIdPathParam>,
+    response: Response,
+    next: NextFunction,
+  ) {
     try {
-      await this._deviceRegistry.registerDevice(request.body);
-      response.status(StatusCodes.CREATED).json({
-        message: "Device registered successfully!",
+      const { releaseId, macAddress } = await ReleaseIdMacAddressPathParamSchema.parseAsync(
+        request.params,
+      );
+      const device = await this._deviceStatusRegistry.checkStatus({
+        releaseId: releaseId,
+        macAddress: macAddress,
+      });
+      response.status(StatusCodes.OK).json({
+        data: {
+          ...device,
+        },
         status: {
-          code: StatusCodes.CREATED,
-          reason: getReasonPhrase(StatusCodes.CREATED),
+          reason: getReasonPhrase(StatusCodes.OK),
+          code: StatusCodes.OK,
         },
       });
     } catch (error) {
@@ -30,18 +44,26 @@ export class DeviceController {
     }
   }
 
-  public async authenticate(
-    request: Request<null, null, null, DeviceDTO>,
+  public async update(
+    request: Request<ReleaseIdPathParam, undefined, undefined, DeviceDTO>,
     response: Response<DeviceRegistryResponse>,
-    next: NextFunction
-  ): Promise<void> {
+    next: NextFunction,
+  ) {
     try {
-      await this._deviceRegistry.authenticate(request.query);
-      response.status(StatusCodes.OK).json({
-        message: "Device Authenticated!",
+      const { releaseId } = await ReleaseIdPathParamSchema.parseAsync(request.params);
+      const { macAddress, status } = await DeviceSchema.parseAsync(request.body);
+      const message = await this._deviceStatusRegistry.update(
+        { releaseId },
+        {
+          macAddress: macAddress,
+          status: status,
+        },
+      );
+      response.status(StatusCodes.CREATED).json({
+        message: message,
         status: {
-          code: StatusCodes.OK,
-          reason: getReasonPhrase(StatusCodes.OK),
+          reason: getReasonPhrase(StatusCodes.CREATED),
+          code: StatusCodes.CREATED,
         },
       });
     } catch (error) {
