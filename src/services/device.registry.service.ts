@@ -1,67 +1,49 @@
 import * as DeviceDAL from "@dal/device.dal";
-import * as ProjectDAL from "@dal/project.dal";
-import { DeviceDTO, DeviceSchema } from "@schemas/device.schema";
+import * as ReleaseDAL from "@dal/release.dal";
+import { DeviceStatus } from "@models/device.model";
+import { DeviceDTO, ReleaseIdMacAddressPathParam } from "@schemas/device.schema";
+import { ReleaseIdPathParam } from "@schemas/release.schema";
 import { ApiError } from "@utils/error";
 import { Logger } from "@utils/logger";
-import { computeElapsedTimeAsync } from "@utils/performance";
 import { StatusCodes } from "http-status-codes";
-import * as uuid from "uuid";
+import { injectable } from "tsyringe";
 
-export class DeviceRegistryService {
-  public async registerDevice(payload: DeviceDTO): Promise<void> {
-    const { projectId, macAddress } = await DeviceSchema.parseAsync(payload);
+@injectable()
+export class DeviceStatusRegistryService {
+  public async update(pathParam: ReleaseIdPathParam, dto: DeviceDTO) {
+    const { releaseId } = pathParam;
+    const { macAddress, status } = dto;
 
-    const millis = await computeElapsedTimeAsync(async () => {
-      const project = await ProjectDAL.findProjectByPublicId(projectId);
+    const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
+    if (!release) {
+      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
+    }
 
-      if (!project) {
-        throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
-      }
-
-      const isRegistered = await DeviceDAL.isDeviceRegistered(project.getId(), macAddress);
-      if (isRegistered) {
-        throw new ApiError(
-          `Device MAC (${macAddress}) is already registered!`,
-          StatusCodes.CONFLICT,
-          uuid.v4()
-        );
-      }
-
-      await DeviceDAL.registerDevice(project.getId(), macAddress);
-    });
-
-    Logger.info(`Device has been registered successfully in ${millis / 1000} seconds!`);
+    await DeviceDAL.updateDeviceStatus(release.getId(), macAddress, status);
+    const message = this._getStatusMessage(macAddress, release.getVersion(), status);
+    Logger.info(message);
+    return message;
   }
 
-  public async removeDevice(payload: DeviceDTO): Promise<void> {
-    const { projectId, macAddress } = await DeviceSchema.parseAsync(payload);
-    const project = await ProjectDAL.findProjectByPublicId(projectId);
+  public async checkStatus(pathParam: ReleaseIdMacAddressPathParam) {
+    const { releaseId, macAddress } = pathParam;
 
-    if (!project) {
-      throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
+    const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
+    if (!release) {
+      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
-    const isRemoved = await DeviceDAL.removeDevice(project.getId(), macAddress);
-    if (!isRemoved) {
-      throw new ApiError("Failed to remove the resource!", StatusCodes.BAD_REQUEST, uuid.v4());
+    const device = await DeviceDAL.findDeviceByMacAddress(macAddress);
+    if (!device) {
+      throw new ApiError("Device not found!", StatusCodes.NOT_FOUND);
     }
 
-    Logger.info("Resource removed successfully!");
+    return device.toDTO();
   }
 
-  public async authenticate(payload: DeviceDTO): Promise<void> {
-    const { projectId, macAddress } = await DeviceSchema.parseAsync(payload);
-    const project = await ProjectDAL.findProjectByPublicId(projectId);
-
-    if (!project) {
-      throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
-    }
-
-    const isRegistered = await DeviceDAL.isDeviceRegistered(project.getId(), macAddress);
-    if (!isRegistered) {
-      throw new ApiError("Device is not registered!", StatusCodes.UNAUTHORIZED, uuid.v4());
-    }
-
-    Logger.info("Device Authenticated!");
+  private _getStatusMessage(macAddress: string, releaseVersion: string, status: DeviceStatus) {
+    return status === "success"
+      ? `Device: (${macAddress}) successfuly updated with version v${releaseVersion}`
+      : `Device: (${macAddress}) update failed for version v${releaseVersion}`;
   }
 }
