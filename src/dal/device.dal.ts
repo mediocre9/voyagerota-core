@@ -1,42 +1,21 @@
-import { DeviceOTAStatus } from "@models/device.model";
-import { Op } from "sequelize";
+import { Device, DeviceStatus } from "@models/device.model";
+import { Release } from "@models/release.model";
 
-export async function registerDevice(projectId: number, macAddress: string): Promise<void> {
-  await DeviceOTAStatus.create({ project_id_fk: projectId, mac_address: macAddress });
-}
-
-export async function isDeviceRegistered(projectId: number, macAddress: string): Promise<boolean> {
-  const device = await DeviceOTAStatus.findOne({
-    where: { [Op.and]: { mac_address: macAddress, project_id_fk: projectId } },
-  });
-
-  return device !== null;
-}
-
-export async function removeDevice(
-  projectId: number,
+export async function updateDeviceStatus(
+  releaseId: number,
   macAddress: string,
-  forceDelete: boolean = false,
-): Promise<boolean> {
-  const removedNumOfRows = await DeviceOTAStatus.destroy({
-    where: { [Op.and]: { project_id_fk: projectId, mac_address: macAddress } },
-    force: forceDelete,
+  status: DeviceStatus,
+) {
+  await Device.upsert({
+    release_id_fk: releaseId,
+    mac_address: macAddress,
+    status: status,
   });
-
-  return removedNumOfRows > 0;
 }
 
-export async function paginateDevicesList(
-  projectId: number,
-  offset: number = 0,
-): Promise<readonly DeviceOTAStatus[]> {
-  const devices = await DeviceOTAStatus.findAll({
-    where: {
-      project_id_fk: projectId,
-    },
-    limit: 5,
-    offset: offset,
+export async function findDeviceByMacAddress(macAddress: string) {
+  return await Device.findOne({
+    where: { mac_address: macAddress },
+    include: { model: Release, required: true, attributes: ["public_id", "version", "channel"] },
   });
-
-  return devices;
 }
