@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
     "module": "es2022",
     "strict": true,
     "moduleResolution": "Bundler",
@@ -12,25 +11,24 @@
     "emitDecoratorMetadata": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "baseUrl": "src",
     "paths": {
-      "@services/*": ["services/*"],
-      "@controllers/*": ["controllers/*"],
-      "@utils/*": ["utils/*"],
-      "@models/*": ["models/*"],
-      "@config/*": ["config/*"],
-      "@queues/*": ["queues/*"],
-      "@workers/*": ["workers/*"],
-      "@schemas/*": ["schemas/*"],
-      "@interfaces/*": ["interfaces/*"],
-      "@middlewares/*": ["middlewares/*"],
-      "@routes/*": ["routes/*"],
-      "@dal/*": ["dal/*"],
-      "@cron/*": ["cron/*"]
+      "@services/*": ["./src/services/*"],
+      "@controllers/*": ["./src/controllers/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@models/*": ["./src/models/*"],
+      "@config/*": ["./src/config/*"],
+      "@queues/*": ["./src/queues/*"],
+      "@workers/*": ["./src/workers/*"],
+      "@schemas/*": ["./src/schemas/*"],
+      "@interfaces/*": ["./src/interfaces/*"],
+      "@middlewares/*": ["./src/middlewares/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@dal/*": ["./src/dal/*"],
+      "@cron/*": ["./src/cron/*"]
     },
     "noImplicitAny": true,
     "noImplicitReturns": true
   },
-  "include": ["src/**/*", "jest.config.js", "__tests__", "sandbox", "env.d.ts"],
-  "exclude": ["node_modules", "**/node_modules/*"]
+  "include": ["src", "env.d.ts", "sandbox"],
+  "exclude": ["node_modules", "dist", "__tests__"]
 }
