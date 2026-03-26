@@ -1,11 +1,11 @@
 config:
-  target: "https://staging.api.voyagerota.com/internal/api/v1/releases"
+  target: "http://localhost:3000/internal/api/v1/releases"
   phases:
     - duration: 30
-      arrivalRate: 10
+      arrivalRate: 100
 
     - duration: 60
-      arrivalRate: 20
+      arrivalRate: 150
 
   defaults:
     headers:
