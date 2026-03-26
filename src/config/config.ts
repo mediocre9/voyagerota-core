@@ -1,3 +1,8 @@
+import dotenv from "dotenv";
+import path from "node:path";
+
+dotenv.config({ path: path.resolve(import.meta.dirname, "../../.env.development") });
+
 export const EnvConfig = {
   BROKER_BASIC_AUTH_CREDENTIALS: process.env.BROKER_BASIC_AUTH_CREDENTIALS,
   PORT: parseInt(process.env.PORT),
