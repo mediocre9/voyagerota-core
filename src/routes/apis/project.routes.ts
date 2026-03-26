@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { ProjectController } from "@controllers/api/project.controller";
 import express from "express";
 import { container } from "tsyringe";

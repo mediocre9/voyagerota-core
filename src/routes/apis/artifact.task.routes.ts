@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { ArtifactTaskController } from "@controllers/api/artifact.task.controller";
 import { container } from "tsyringe";
 import express from "express";

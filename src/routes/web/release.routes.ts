@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
 import express from "express";
 import { ArtifactReleaseController } from "@controllers/web/release.controller";
 import { ArtifactStorageController } from "@controllers/api/artifact.storage.controller";
