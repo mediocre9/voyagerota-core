@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { EnvConfig } from "@config/config";
 import { ProjectIdPathParam, ProjectIdPathParamSchema } from "@schemas/project.schema";
 import {
@@ -20,7 +19,7 @@ import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import prettyBytes from "pretty-bytes";
 import { inject, injectable } from "tsyringe";
 import * as marked from "marked";
-import { ReleaseArtifactCreationResponse, ReleaseListArtifactsResponse } from "types";
+import { ReleaseArtifactCreationResponse, ReleaseListArtifactsResponse } from "../../types";
 
 @injectable()
 export class ArtifactReleaseController {

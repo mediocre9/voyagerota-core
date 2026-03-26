@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { ProjectIdPathParam, ProjectIdPathParamSchema } from "@schemas/project.schema";
 import {
   ReleaseBaseQueryParamSchema,
@@ -14,7 +12,7 @@ import { ApiError } from "@utils/error";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import { inject, injectable } from "tsyringe";
-import { ReleaseArtifactCreationResponse } from "types";
+import { ReleaseArtifactCreationResponse } from "../../types";
 import { ZodError } from "zod";
 import prettyBytes from "pretty-bytes";
 
