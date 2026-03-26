@@ -12,12 +12,12 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as ArtifactQueue from "./artifact.queue";
 
-const ___VYGR_DEVELOPMENT_TOKEN___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
-const ___VYGR_PRODUCTION_TOKEN___ = "$2y$10$DX0bqDwfQtWJkBPgiXHVqOcbjOoX5i9cRHxSTgK3xgjTHpy5EGNbO";
+const ___VYGR_DEV_MARKER___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
+const ___VYGR_PROD_MARKER___ = "$2y$10$DX0bqDwfQtWJkBPgiXHVqOcbjOoX5i9cRHxSTgK3xgjTHpy5EGNbO";
 
 const token = new Map<ArtifactBuildStatus, string>([
-  ["development-build", ___VYGR_DEVELOPMENT_TOKEN___],
-  ["production-build", ___VYGR_PRODUCTION_TOKEN___],
+  ["development-build", ___VYGR_DEV_MARKER___],
+  ["production-build", ___VYGR_PROD_MARKER___],
 ]);
 
 async function _inspectFileForBuildStatus(
@@ -49,78 +49,76 @@ async function _markReleaseAsStaging(
   job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
   status: ArtifactBuildStatus,
 ): Promise<void> {
-  if (status === "production-build") {
-    const transaction = await db.transaction();
-    try {
-      await ArtifactDAL.updateArtifactStatus(
-        job.data.releaseInternalId,
-        job.data.filename,
-        status,
-        transaction,
-      );
-      await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "staging", transaction);
-      await transaction.commit();
-      Logger.info("Release has been promoted to staging state!");
-    } catch (error) {
-      await transaction.rollback();
-      Logger.error(error as string);
-      throw error;
-    }
+  const transaction = await db.transaction();
+  try {
+    await ArtifactDAL.updateArtifactStatus(
+      job.data.releaseInternalId,
+      job.data.filename,
+      status,
+      transaction,
+    );
+    await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "staging", transaction);
+    await transaction.commit();
+    Logger.info("Release has been promoted to staging state!");
+  } catch (error) {
+    await transaction.rollback();
+    Logger.error(error as string);
+    throw error;
   }
 }
 
-const worker = new ArtifactInspectionWorker(
-  ArtifactQueue.ARTIFACT_QUEUE_NAME,
-  async (
-    job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
-  ): Promise<ArtifactQueue.TaskOutputData> => {
-    const status = await _inspectFileForBuildStatus(job);
+async function _fileProcessor(
+  job: Job<ArtifactQueue.TaskInputData, ArtifactQueue.TaskOutputData>,
+): Promise<ArtifactQueue.TaskOutputData> {
+  const status = await _inspectFileForBuildStatus(job);
 
-    const elapsedTime = await computeElapsedTimeAsync(async () => {
+  const elapsedTime = await computeElapsedTimeAsync(async () => {
+    if (status === "production-build") {
       await _markReleaseAsStaging(job, status);
-    });
-
-    const FILE_STORAGE_PATH = path.join(
-      FileStorageOperation.DEFAULT_FILE_STORAGE_PATH,
-      job.data.filename,
-    );
-
-    const isNotProdBuild = status !== "production-build" && fsSync.existsSync(FILE_STORAGE_PATH);
-    if (isNotProdBuild) {
-      await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, null, true);
-      await FileStorageOperation.removePermanently(job.data.filename, "storage");
-      Logger.info(`${status} - ${job.data.filename} has been permanently removed from worker!`);
     }
+  });
 
-    const message = _getBuildStatusMessage(status);
-    const result = {
-      artifactId: job.data.artifactId,
-      artifactStatus: status === "production-build" ? "accepted" : "rejected",
-      detectedBinary: status,
-      message: message,
-      elapsedTime: elapsedTime / 1000, // in seconds......
-    };
+  const FILE_STORAGE_PATH = path.join(
+    FileStorageOperation.DEFAULT_FILE_STORAGE_PATH,
+    job.data.filename,
+  );
 
-    return result as ArtifactQueue.TaskOutputData;
+  const isNotProdBuild = status !== "production-build" && fsSync.existsSync(FILE_STORAGE_PATH);
+  if (isNotProdBuild) {
+    await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, null, true);
+    await FileStorageOperation.removePermanently(job.data.filename, "storage");
+    Logger.info(`${status} - ${job.data.filename} has been permanently removed from worker!`);
+  }
+
+  const message = _getBuildStatusMessage(status);
+  const result = {
+    artifactId: job.data.artifactId,
+    artifactStatus: status === "production-build" ? "accepted" : "rejected",
+    detectedBinary: status,
+    message: message,
+    elapsedTime: elapsedTime / 1000, // in seconds......
+  };
+
+  return result as ArtifactQueue.TaskOutputData;
+}
+
+const worker = new ArtifactInspectionWorker(ArtifactQueue.ARTIFACT_QUEUE_NAME, _fileProcessor, {
+  limiter: {
+    max: 50, // should be later consider in prod....
+    duration: 60 * 1000, // same with this....
   },
-  {
-    limiter: {
-      max: 50, // should be later consider in prod....
-      duration: 60 * 1000, // same with this....
-    },
-    connection: RedisConnection,
-    autorun: true,
-    removeOnComplete: {
-      age: 3600,
-      count: 2000,
-    },
-
-    removeOnFail: {
-      age: 24 * 3600,
-      count: 5000,
-    },
+  connection: RedisConnection,
+  autorun: true,
+  removeOnComplete: {
+    age: 3600,
+    count: 2000,
   },
-);
+
+  removeOnFail: {
+    age: 24 * 3600,
+    count: 5000,
+  },
+});
 
 worker.on("ready", () => {
   Logger.info("worker started!");
