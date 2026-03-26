@@ -7,7 +7,7 @@ import {
   DeviceSchema,
   ReleaseIdMacAddressPathParamSchema,
 } from "@schemas/device.schema";
-import { DeviceRegistryResponse } from "types";
+import { DeviceRegistryResponse } from "../../types";
 import { ReleaseIdPathParam, ReleaseIdPathParamSchema } from "@schemas/release.schema";
 
 @injectable()
@@ -59,11 +59,11 @@ export class DeviceUpdateRegistryController {
           status: status,
         },
       );
-      response.status(StatusCodes.CREATED).json({
+      response.status(StatusCodes.OK).json({
         message: message,
         status: {
-          reason: getReasonPhrase(StatusCodes.CREATED),
-          code: StatusCodes.CREATED,
+          reason: getReasonPhrase(StatusCodes.OK),
+          code: StatusCodes.OK,
         },
       });
     } catch (error) {

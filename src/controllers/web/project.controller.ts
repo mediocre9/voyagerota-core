@@ -3,7 +3,7 @@ import { ProjectService } from "@services/project.service";
 import { NextFunction, Response, Request } from "express";
 import { inject, injectable } from "tsyringe";
 import { StatusCodes } from "http-status-codes";
-import { ProjectCreationResponse, ProjectDeletedResponse, ProjectListResponse } from "types";
+import { ProjectCreationResponse, ProjectDeletedResponse, ProjectListResponse } from "../../types";
 import { ZodError } from "zod";
 import { ApiError } from "@utils/error";
 import { User } from "@models/user.model";

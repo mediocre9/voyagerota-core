@@ -2,7 +2,7 @@ import { Project } from "@models/project.model";
 import { generateApiKey } from "@utils/utils";
 import sequelize, { Transaction } from "sequelize";
 import { Op } from "sequelize";
-import { Nullable } from "interfaces/common/common";
+import { Nullable } from "@interfaces/common/common";
 import { Release } from "@models/release.model";
 import { Artifact } from "@models/artifact.model";
 

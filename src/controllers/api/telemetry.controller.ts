@@ -12,19 +12,19 @@ import {
   TelemetryTopicCreationResponse,
   TelemetryTopicUpdateResponse,
   TelemetryUserAuthResponse,
-} from "types";
+} from "../../types";
 
 @injectable()
 export class TelemetryRegistryController {
   constructor(
     @inject(TelemetryRegistryService) private readonly _registryService: TelemetryRegistryService,
-    @inject(TelemetryTopicService) private readonly _topicService: TelemetryTopicService
+    @inject(TelemetryTopicService) private readonly _topicService: TelemetryTopicService,
   ) {}
 
   public async createTopic(
     request: Request<undefined, undefined, TelemetryIdAndTopicDTO>,
     response: Response<TelemetryTopicCreationResponse>,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       await this._topicService.createTopic(request.body);
@@ -43,7 +43,7 @@ export class TelemetryRegistryController {
   public async updateTopic(
     request: Request<undefined, undefined, TelemetryIdAndTopicDTO>,
     response: Response<TelemetryTopicUpdateResponse>,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       await this._topicService.updateTopic(request.body);
@@ -63,7 +63,7 @@ export class TelemetryRegistryController {
   public async enableTelemetry(
     request: Request<undefined, undefined, undefined, ProjectIdQueryParam>,
     response: Response<TelemetryRegistryResponse>,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       const id = await this._registryService.enableTelemetry(request.query);
@@ -83,7 +83,7 @@ export class TelemetryRegistryController {
   public async createUserOnBroker(
     request: Request<undefined, undefined, undefined, ProjectIdQueryParam>,
     response: Response<TelemetryUserAuthResponse>,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       const user = await this._registryService.registerUserOnBroker(request.query);

@@ -9,7 +9,7 @@ import { ProjectService } from "@services/project.service";
 import { NextFunction, Response, Request } from "express";
 import { inject, injectable } from "tsyringe";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
-import { ProjectCreationResponse, ProjectDeletedResponse, ProjectListResponse } from "types";
+import { ProjectCreationResponse, ProjectDeletedResponse, ProjectListResponse } from "../../types";
 
 @injectable()
 export class ProjectController {
