@@ -1,11 +1,27 @@
-![Backend](https://img.shields.io/badge/Platform-Backend-blue?style=for-the-badge)
-![Devices](https://img.shields.io/badge/Devices-ESP32%2FESP8266-orange?style=for-the-badge)
-![Client Library](https://img.shields.io/badge/Client-voyagerota--client--lib-blue?style=for-the-badge)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+<p align="center">
+    <h1 align="center">
+        VoyagerOTA
+    </h1>
+    <h3 align="center">
+        Firmware OTA Release Distribution Platform
+    </h3>
+    <p align="center">
+    &nbsp;
+    <a href="#"><img src="https://img.shields.io/badge/Built_With-Typescript-blue?style=flat-square&color=5a66f6"></a>
+    <a href="#"><img src="https://img.shields.io/badge/Platform-Backend-blue?style=flat-square&color=87314f"></a>
+    &nbsp;
+    <a href="https://github.com/mediocre9/VoyagerOTAClient"><img src="https://img.shields.io/badge/SDK-VoyagerOTAClient-blue?style=flat-square&color=583187"></a>
+        &nbsp;
+    <a href="#"><img src="https://img.shields.io/badge/Device-ESP32-Blue?style=flat-square&color=57b578"></a>
+    <a href="https://github.com/mediocre9/voyager-ota/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square&color=5a66f6"></a>
+    </p>
+</p>
 
-# VoyagerOTA
+## What is VoyagerOTA?
 
-> a backend OTA platform for developers to manage monotonic semver firmware releases with binary inspection, staging, production channels, revocation, with an [OTA client SDK](https://github.com/mediocre9/VoyagerOTAClient).
+VoyagerOTA is a backend platform for managing and distributing firmware updates over-the-air (OTA). It is designed for developers working with embedded devices, providing a structured way to handle firmware releases using monotonic semantic versioning.
+
+The platform supports drafting releases with metadata, validating uploaded binaries, and organizing deployments through staging and production channels. It includes safeguards such as duplicate binary detection, build-type validation, and version conflict prevention. Releases can be tested in staging before being promoted to production, and can be revoked if necessary.
 
 ## Features
 
@@ -20,7 +36,7 @@
 
 - [ ] Device update reporting
 
-## Setup
+## Quickstart
 
 > [!NOTE]
 > Create a `.env.development` file in the root before running the server.
@@ -95,13 +111,7 @@ void loop() {}
 > 4. On your local device, you can temporarily set `__ENABLE_DEVELOPMENT_MODE__` true to fetch the **staging** release.
 > 5. After testing, promote the release to **production** to make it available to all devices.
 
-## Architecture
-
-### 1. Release Flow
-
-Release Flow begins with drafting a release containing only metadata such as version and changelog. The system hashes the uploaded compiled binary and automatically rejects any duplicates. The background artifact worker inspects the binary to determine its build type. Only production enabled compiled binaries can move to the staging channel for testing, unknown or staging enabled binaries are rejected by the inspection worker. Verified production builds can then be manually promoted to production. Devices fetch updates from the relevant channel staging or production depending on their mode.
-
-### 2. System High Level Architecture Diagram
+## System High Level Architecture Diagram
 
 <p align="center">
   <img src="docs/1.png" width="100%" alt="Architecture Diagram"/>
