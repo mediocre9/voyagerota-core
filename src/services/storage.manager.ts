@@ -42,11 +42,6 @@ export class StorageManager {
   }
 
   static async moveToTrashDirectory(filename: string): Promise<void> {
-    const isTrashFolderAvailable = await fs.readdir(StorageManager.DEFAULT_TRASH_DIRECTORY_PATH);
-
-    if (!isTrashFolderAvailable) {
-      await fs.mkdir(StorageManager.DEFAULT_TRASH_DIRECTORY_PATH);
-    }
     const oldFilePath = path.join(StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH, filename);
     const newFilePath = path.join(StorageManager.DEFAULT_TRASH_DIRECTORY_PATH, filename);
     await fs.rename(oldFilePath, newFilePath);
