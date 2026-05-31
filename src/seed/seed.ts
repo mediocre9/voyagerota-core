@@ -21,7 +21,7 @@ try {
       { id: 3, username: "Colt", public_id: nanoid(21), email: "colt@brawl.example" },
       { id: 4, username: "Brock", public_id: nanoid(21), email: "brock@brawl.example" },
     ],
-    { transaction: transaction }
+    { transaction: transaction },
   );
 
   await Project.bulkCreate(
@@ -68,7 +68,7 @@ try {
         board_type: "ESP32",
       },
     ],
-    { transaction: transaction }
+    { transaction: transaction },
   );
 
   await Release.bulkCreate(
@@ -197,34 +197,8 @@ try {
         project_id_fk: 5,
       },
     ],
-    { transaction: transaction }
+    { transaction: transaction },
   );
-
-  // await Environment.bulkCreate(
-  //   [
-  //     { release_id_fk: 1, status: "STAGING" },
-  //     { release_id_fk: 2, status: "STAGING" },
-  //     { release_id_fk: 3, status: "PRODUCTION" },
-  //     { release_id_fk: 4, status: "STAGING" },
-
-  //     { release_id_fk: 6, status: "STAGING" },
-  //     { release_id_fk: 7, status: "STAGING" },
-  //     { release_id_fk: 8, status: "PRODUCTION" },
-  //     { release_id_fk: 9, status: "STAGING" },
-  //     { release_id_fk: 10, status: "PRODUCTION" },
-  //     { release_id_fk: 11, status: "STAGING" },
-  //     { release_id_fk: 12, status: "STAGING" },
-  //     { release_id_fk: 13, status: "PRODUCTION" },
-  //     { release_id_fk: 14, status: "STAGING" },
-  //     { release_id_fk: 15, status: "PRODUCTION" },
-  //     { release_id_fk: 16, status: "STAGING" },
-  //     { release_id_fk: 17, status: "STAGING" },
-  //     { release_id_fk: 18, status: "PRODUCTION" },
-  //     { release_id_fk: 19, status: "STAGING" },
-  //     { release_id_fk: 20, status: "PRODUCTION" },
-  //   ],
-  //   { transaction: transaction }
-  // );
 
   await transaction.commit();
   Logger.info("Database has been seeded!");
