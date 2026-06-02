@@ -7,14 +7,14 @@ export const ARTIFACT_QUEUE_NAME = "artifact-queue";
 
 export const DEAD_LETTER_QUEUE_NAME = "dead-letter-queue";
 
-export interface TaskInputData {
+export interface TaskArtifactInputData {
   artifactId: string;
   releaseId: string;
   releaseInternalId: number;
   filename: string;
 }
 
-export interface TaskOutputData {
+export interface TaskArtifactOutputData {
   artifactId: string;
   artifactStatus: "accepted" | "rejected";
   detectedBinary: ArtifactBuildStatus;
@@ -27,7 +27,7 @@ export interface TaskOutputData {
 // * need better backoff strategy algorithm....
 // * understand backoff strategies in detail....
 // * current approach is Jitter-Exponential BackOff Strategy Algorithm
-export class ArtifactInspectionQueue extends Queue<TaskInputData, TaskOutputData> {
+export class ArtifactInspectionQueue extends Queue<TaskArtifactInputData, TaskArtifactOutputData> {
   constructor() {
     super(ARTIFACT_QUEUE_NAME, {
       connection: RedisConnection,
@@ -39,7 +39,9 @@ export class ArtifactInspectionQueue extends Queue<TaskInputData, TaskOutputData
     });
   }
 
-  public async enQueueArtifact(data: TaskInputData): Promise<Job<TaskInputData, TaskOutputData>> {
+  public async enQueueArtifact(
+    data: TaskArtifactInputData,
+  ): Promise<Job<TaskArtifactInputData, TaskArtifactOutputData>> {
     const jobId = nanoid();
     const jobName = `artifact-queue:${data.filename}-${Date.now().valueOf()}`;
 
