@@ -12,4 +12,5 @@ projectApiRouter
 
 projectApiRouter
   .route("/projects/:projectId")
+  .patch(projectController.restoreProject.bind(projectController))
   .delete(projectController.removeProject.bind(projectController));
