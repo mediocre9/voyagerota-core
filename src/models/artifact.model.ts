@@ -17,7 +17,7 @@ export interface ArtifactFileDTO {
 }
 
 export type ArtifactProcessState = "processed" | "pending" | "revoked";
-export type ArtifactBuildStatus = "development-build" | "production-build" | "unknown-build";
+export type ArtifactBuildStatus = "staging-build" | "production-build" | "unknown-build";
 
 export class Artifact extends Model<InferAttributes<Artifact>, InferCreationAttributes<Artifact>> {
   declare id?: number;
