@@ -98,28 +98,8 @@ export class ArtifactReleaseController {
     try {
       const param = await ReleaseIdPathParamSchema.parseAsync(request.params);
       await this._release.removeRelease(param);
-      response.status(StatusCodes.OK).json({
-        message: "Release has been successfully removed!",
-        status: {
-          reason: getReasonPhrase(StatusCodes.OK),
-          code: StatusCodes.OK,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async restoreRelease(
-    request: Request<ReleaseIdPathParam>,
-    response: Response<ReleaseArtifactCreationResponse>,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      const param = await ReleaseIdPathParamSchema.parseAsync(request.params);
-      await this._release.restoreRelease(param);
-      response.status(StatusCodes.OK).json({
-        message: "Release has been successfully restored!",
+      response.status(StatusCodes.ACCEPTED).json({
+        message: "Release has been removed!",
         status: {
           reason: getReasonPhrase(StatusCodes.OK),
           code: StatusCodes.OK,
@@ -178,10 +158,21 @@ export class ArtifactReleaseController {
       const query = await ReleaseChannelQueryParamSchema.parseAsync(request.query);
       const release = await this._release.getLatestRelease(query, projectId, apiKey);
 
+      if (!release) {
+        response.status(StatusCodes.ACCEPTED).json({
+          message: "Processing to fetch latest release . . . .",
+          status: {
+            reason: getReasonPhrase(StatusCodes.ACCEPTED),
+            code: StatusCodes.ACCEPTED,
+          },
+        });
+        return;
+      }
+
+      release.artifact!.prettySize = prettyBytes(release.artifact!.size);
+      release.changeLog = await marked.marked(release.changeLog);
+      delete release.createdAt;
       const downloadURL = `${EnvConfig.BASE_URL}/internal/api/v1/releases/${release?.id}/artifacts/${release?.artifact?.id}/download`;
-      release!.artifact!.prettySize = prettyBytes(release!.artifact!.size);
-      release!.changeLog = await marked.marked(release!.changeLog);
-      delete release!.createdAt;
       const releaseWithDownloadUrl = {
         ...release,
         artifact: {
