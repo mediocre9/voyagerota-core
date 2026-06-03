@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "nodemon --exec tsx --env-file=.env.development src/server.ts",
     "artifact-worker": "npx tsx --watch --env-file=.env.development src/queues/artifact.queue.worker.ts",
+    "storage-worker": "npx tsx --watch --env-file=.env.development src/queues/storage.manager.queue.worker.ts",
+    "outbox-relay": "npx tsx --watch --env-file=.env.development src/services/outbox.relay.service.ts",
+    "orphan-cron": "npx tsx --watch --env-file=.env.development src/cron/orphan.file.cleaner.cron.ts",
+    "purger-cron": "npx tsx --watch --env-file=.env.development src/cron/purge.projects.cron.ts",
     "seed": "npx tsx src/seed/seed.ts",
     "sandbox": "npx tsx --watch sandbox/sandbox.ts"
   },
@@ -58,7 +62,7 @@
     "@types/express-session": "^1.18.2",
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.0.0",
-    "@types/node": "^25.0.10",
+    "@types/node": "^25.9.1",
     "@types/passport-google-oauth20": "^2.0.17",
     "@types/semver": "^7.7.1",
     "@types/sequelize": "^6.12.0",
