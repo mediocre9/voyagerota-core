@@ -18,7 +18,6 @@ import { taskApiRouter } from "@routes/apis/artifact.task.routes";
 import { isAuthenticated } from "@middlewares/auth";
 import morgan from "morgan";
 import { Logger } from "@utils/logger";
-import { PurgingCronJob } from "@cron/purge.cron";
 import helmet from "helmet";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
@@ -167,7 +166,6 @@ app.listen(EnvConfig.PORT ?? 8080, "0.0.0.0", () => {
   Logger.info("Server has started . . . .");
   Logger.info(EnvConfig.BASE_URL);
   Logger.info(process.env.ENVIRONMENT);
-  PurgingCronJob.start();
 });
 
 process.on("unhandledRejection", (e) => {
