@@ -2,7 +2,7 @@ import { Project } from "@models/project.model";
 import { generateApiKey } from "@utils/utils";
 import sequelize, { Transaction } from "sequelize";
 import { Op } from "sequelize";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 import { Release } from "@models/release.model";
 import { Artifact } from "@models/artifact.model";
 
@@ -107,19 +107,38 @@ export async function findProjectByPublicIdAndApiKey(
   });
 }
 
-export async function findProjectByApiKey(apiKey: string): Promise<Readonly<Nullable<Project>>> {
+export async function findProjectByApiKey(apiKey: string): Promise<Nullable<Project>> {
   return await Project.findOne({
     where: { api_key: apiKey },
   });
 }
 
-export async function findProjectByInternalId(id: number): Promise<Readonly<Nullable<Project>>> {
+export async function findProjectByInternalId(id: number): Promise<Nullable<Project>> {
   return await Project.findOne({
     where: { id: id },
   });
 }
+export async function findAllProjectsByInternalId(id: number): Promise<readonly Project[]> {
+  return await Project.findAll({
+    where: { id: id },
+  });
+}
+export async function findAllSoftDeletedProjectByInternalId(
+  id: number,
+): Promise<readonly Project[]> {
+  return await Project.findAll({
+    where: { id: id },
+    paranoid: false,
+  });
+}
+export async function findSoftDeletedProjectById(id: string): Promise<Nullable<Project>> {
+  return await Project.findOne({
+    where: { public_id: id },
+    paranoid: false,
+  });
+}
 
-export async function deleteProject(
+export async function softDeleteProject(
   projectId: number,
   transactionObject?: Transaction,
 ): Promise<void> {
@@ -130,14 +149,14 @@ export async function deleteProject(
   });
 }
 
-export async function purgeAllProjects(date: Date, transactionObject?: Transaction): Promise<void> {
-  await Project.destroy({
+export async function purgeAllProjects(date: Date, transaction?: Transaction): Promise<number> {
+  return await Project.destroy({
     where: {
       deleted_at: {
         [Op.lte]: date,
       },
     },
-    transaction: transactionObject,
+    transaction: transaction,
     force: true,
   });
 }

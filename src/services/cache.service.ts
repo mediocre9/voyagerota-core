@@ -1,7 +1,20 @@
 import { redis } from "@config/redis.connection.config";
-import * as Types from "@interfaces/common/common";
-import { Logger } from "@utils/logger";
+import * as Types from "../types";
 import { injectable } from "tsyringe";
+
+type MutexKey = { mutexKey: string };
+
+type Channel = "staging" | "production";
+
+type CacheData<T> = { cachedData: Types.Nullable<T>; cacheKey: string };
+
+type CacheCreationStatus = { isCached: boolean; cacheKey: string };
+
+type CacheInvalidationStatus = { isInvalidated: boolean; cacheKey: string };
+type ChannelBasedCacheInvalidationStatus = {
+  staging: { wasCached: boolean; key: Types.Nullable<string> };
+  production: { wasCached: boolean; key: Types.Nullable<string> };
+};
 
 export abstract class CacheService {
   public async add(id: string, data: string): Promise<void> {
@@ -24,18 +37,15 @@ export abstract class CacheService {
     return JSON.parse(data) as T;
   }
 
-  public async remove(key: string): Promise<void> {
-    await redis.del(key);
+  public async remove(key: string): Promise<boolean> {
+    return (await redis.del(key)) > 0;
   }
 }
 
 @injectable()
 export class ReleaseCacheService extends CacheService {
-  public async invalidateCache(
-    key: string,
-    channel: "staging" | "production",
-  ): Promise<{ isInvalidated: boolean; cacheKey: string }> {
-    const cacheKey = key.concat(":").concat(channel);
+  public async invalidateCache(key: string, channel: Channel): Promise<CacheInvalidationStatus> {
+    const cacheKey = this._createChannelBasedCacheKey(key, channel);
     if (await this.isNotEmpty(cacheKey)) {
       await this.remove(cacheKey);
       return { isInvalidated: true, cacheKey: cacheKey };
@@ -43,17 +53,14 @@ export class ReleaseCacheService extends CacheService {
     return { isInvalidated: false, cacheKey: cacheKey };
   }
 
-  public async invalidateCacheChannels(key: string): Promise<{
-    staging: { isCached: boolean; key: Types.Nullable<string> };
-    production: { isCached: boolean; key: Types.Nullable<string> };
-  }> {
-    const stagingChannelKey = key.concat(":").concat("staging");
+  public async invalidateCacheChannels(key: string): Promise<ChannelBasedCacheInvalidationStatus> {
+    const stagingChannelKey = this._createChannelBasedCacheKey(key, "staging");
     const isStagingCached = await this.isNotEmpty(stagingChannelKey);
     if (isStagingCached) {
       await this.remove(stagingChannelKey);
     }
 
-    const productionChannelKey = key.concat(":").concat("production");
+    const productionChannelKey = this._createChannelBasedCacheKey(key, "production");
     const isProductionCached = await this.isNotEmpty(productionChannelKey);
     if (isProductionCached) {
       await this.remove(productionChannelKey);
@@ -61,11 +68,11 @@ export class ReleaseCacheService extends CacheService {
 
     return {
       staging: {
-        isCached: isStagingCached,
+        wasCached: isStagingCached,
         key: isStagingCached ? stagingChannelKey : null,
       },
       production: {
-        isCached: isProductionCached,
+        wasCached: isProductionCached,
         key: isProductionCached ? productionChannelKey : null,
       },
     };
@@ -74,9 +81,9 @@ export class ReleaseCacheService extends CacheService {
   public async addChannelBased<T>(
     key: string,
     data: T,
-    channel: "staging" | "production",
-  ): Promise<{ isCached: boolean; cacheKey: string }> {
-    const cacheKey = key.concat(":").concat(channel);
+    channel: Channel,
+  ): Promise<CacheCreationStatus> {
+    const cacheKey = this._createChannelBasedCacheKey(key, channel);
     if (await this.isEmpty(cacheKey)) {
       await this.add(cacheKey, JSON.stringify(data));
       return { isCached: true, cacheKey: cacheKey };
@@ -84,14 +91,27 @@ export class ReleaseCacheService extends CacheService {
     return { isCached: false, cacheKey: cacheKey };
   }
 
-  public async getChannelBased<T>(
-    key: string,
-    channel: "staging" | "production",
-  ): Promise<{ cachedData: Types.Nullable<T>; cacheKey: string }> {
-    const cacheKey = key.concat(":").concat(channel);
+  public async getChannelBased<T>(key: string, channel: Channel): Promise<CacheData<T>> {
+    const cacheKey = this._createChannelBasedCacheKey(key, channel);
     if (await this.isNotEmpty(cacheKey)) {
       return { cachedData: await this.get<T>(cacheKey), cacheKey: cacheKey };
     }
     return { cachedData: null, cacheKey: cacheKey };
+  }
+
+  public async acquireMutexLock({ mutexKey }: MutexKey): Promise<boolean> {
+    const TTL = 20; // in seconds....
+    const mutexLockKey = `LOCK:${mutexKey}`;
+    return (await redis.set(mutexLockKey, "ACQUIRED", "EX", TTL, "NX")) === "OK";
+  }
+
+  public async releaseMutexLock({ mutexKey }: MutexKey): Promise<boolean> {
+    const mutexLockKey = `LOCK:${mutexKey}`;
+    return await this.remove(mutexLockKey);
+  }
+
+  private _createChannelBasedCacheKey(key: string, channel: Channel): string {
+    const cacheKey = `${key}:${channel}`;
+    return cacheKey;
   }
 }

@@ -3,7 +3,7 @@ import * as crypto from "node:crypto";
 import * as semver from "semver";
 import { uniqueNamesGenerator, adjectives, colors } from "unique-names-generator";
 import { spaceNames } from "./space-dictionary-names";
-import { log } from "node:console";
+import { Logger } from "./logger";
 
 /**
  * @deprecated This function has been deprecated.
@@ -66,7 +66,7 @@ export function isSemver(version: string): boolean {
 
     return true;
   } catch (error) {
-    log(error);
+    Logger.error((error as Error).message);
     throw error;
   }
 }
@@ -78,7 +78,7 @@ export function isSemver(version: string): boolean {
  * @returns strings
  */
 export function generateApiKey(): string {
-  return "vygr_" + crypto.randomBytes(16).toString("hex");
+  return "vygr_" + crypto.randomBytes(16).toString("hex").toUpperCase();
 }
 
 export async function generateFileHash(filename: string): Promise<string> {

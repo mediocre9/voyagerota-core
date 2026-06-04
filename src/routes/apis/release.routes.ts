@@ -30,10 +30,6 @@ releaseApiRouter
   .delete(releaseController.removeRelease.bind(releaseController));
 
 releaseApiRouter
-  .route("/:projectId/releases/:releaseId/restore")
-  .patch(releaseController.restoreRelease.bind(releaseController));
-
-releaseApiRouter
   .route("/:projectId/releases/:releaseId/artifacts/:artifactId/promote")
   .patch(releaseController.promote.bind(releaseController));
 

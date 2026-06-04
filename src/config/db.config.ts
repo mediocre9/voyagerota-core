@@ -12,7 +12,7 @@ export const db = new Sequelize({
   password: EnvConfig.DB_PASSWORD,
   pool: {
     max: 5,
-    min: 0,
+    min: 2,
     acquire: 30000,
     idle: 10000,
   },

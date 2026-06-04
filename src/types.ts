@@ -1,7 +1,9 @@
 import { Release, ReleaseAttributesDTO } from "@models/release.model";
-import { TaskStatus } from "@services/artifact.queue.service";
+import { TaskArtifactStatus } from "@services/artifact.queue.service";
 import { ProjectDTOFields } from "@services/project.service";
-import { Nullable } from "@interfaces/common/common";
+
+export type Nullable<T> = T | null;
+export type NullableOrUndefined<T> = T | null | undefined;
 
 type StatusResponse = {
   status: {
@@ -15,7 +17,7 @@ export type ReleaseArtifactCreationResponse = {
 } & StatusResponse;
 
 export type ArtifactTaskCreationResponse = {
-  task: TaskStatus;
+  task: TaskArtifactStatus;
 } & StatusResponse;
 
 export type ReleaseListArtifactsResponse = {

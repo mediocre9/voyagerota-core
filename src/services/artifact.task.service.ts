@@ -6,8 +6,8 @@ import { StatusCodes } from "http-status-codes";
 import { inject, injectable } from "tsyringe";
 import {
   ArtifactInspectionQueueService,
-  TaskResultData,
-  TaskStatus,
+  TaskArtifactResultData,
+  TaskArtifactStatus,
 } from "./artifact.queue.service";
 import { TaskIdPathParam } from "@schemas/task.schema";
 
@@ -18,21 +18,25 @@ export class ArtifactInspectionTaskService {
     private readonly _queue: ArtifactInspectionQueueService,
   ) {}
 
-  public async createTask(dto: ArtifactTaskDTO): Promise<TaskResultData> {
+  public async createTask(dto: ArtifactTaskDTO): Promise<TaskArtifactResultData> {
     const { releaseId, filename } = dto;
 
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
     if (!release) {
-      throw new ApiError("releaseId Not Found!", StatusCodes.NOT_FOUND);
+      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
     const artifact = await ArtifactDAL.findPendingArtifact(release.getId(), filename);
+
     if (!artifact) {
       throw new ApiError("Artifact not found!", StatusCodes.NOT_FOUND);
     }
 
-    if (artifact.isProcessed()) {
-      throw new ApiError("This artifact has been already processed!", StatusCodes.CONFLICT);
+    if (artifact.isProcessed() || artifact.isRevoked()) {
+      throw new ApiError(
+        `Task processing rejected as this artifact is ${artifact.getFileProcessState()}.`,
+        StatusCodes.CONFLICT,
+      );
     }
 
     const taskResult = await this._queue.putJob({
@@ -45,7 +49,7 @@ export class ArtifactInspectionTaskService {
     return taskResult;
   }
 
-  public async getTaskStatus(pathParam: TaskIdPathParam): Promise<TaskStatus> {
+  public async getTaskStatus(pathParam: TaskIdPathParam): Promise<TaskArtifactStatus> {
     const { taskId } = pathParam;
     const job = await this._queue.getJob(taskId);
 
@@ -54,12 +58,12 @@ export class ArtifactInspectionTaskService {
     }
 
     const state = await this._queue.getCurrentJobState(taskId);
-    const status = this._queue.getJobStatus(state);
+    const status = this._queue.getJobStatusMessage(state);
     const jobData = await this._queue.getData(taskId);
-    const taskStatus: TaskStatus = {
+    const taskStatus: TaskArtifactStatus = {
       status: status,
       state: state,
-      data: jobData,
+      data: jobData!,
     };
 
     return taskStatus;

@@ -2,7 +2,7 @@ import { db } from "@config/db.config";
 import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
-import { Nullable, NullableOrUndefined } from "@interfaces/common/common";
+import { Nullable, NullableOrUndefined } from "../types";
 import { ReleaseAttributesDTO } from "@models/release.model";
 import { ProjectIdPathParam } from "@schemas/project.schema";
 import {
@@ -11,7 +11,6 @@ import {
   ReleaseChannelQueryParam,
   ReleaseIdPathParam,
 } from "@schemas/release.schema";
-import { FileStorageOperation } from "@utils/common";
 import { ApiError } from "@utils/error";
 import { Logger } from "@utils/logger";
 import * as Utils from "@utils/utils";
@@ -125,8 +124,6 @@ export class ArtifactReleaseService {
     return release.getPublicId();
   }
 
-  // *Soft Deletes record and moves release binary to trash folder....
-  // todo regression test it.....
   public async removeRelease(pathParam: ReleaseIdPathParam): Promise<void> {
     const { releaseId } = pathParam;
 
@@ -139,7 +136,7 @@ export class ArtifactReleaseService {
       throw new ApiError("Production release cannot be deleted!", StatusCodes.BAD_REQUEST);
     }
 
-    if (release.isDraft()) {
+    if (release.isDraft() || release.isStaging()) {
       try {
         await ReleaseDAL.deleteReleaseByPublicId(releaseId);
         Logger.info("Release successfully deleted");
@@ -147,56 +144,6 @@ export class ArtifactReleaseService {
         Logger.error(error as string);
         throw error;
       }
-    }
-
-    if (release.isStaging()) {
-      const transaction = await db.transaction();
-      try {
-        const artifact = await ArtifactDAL.findProcessedArtifact(release.getId());
-        await ReleaseDAL.deleteReleaseByPublicId(releaseId, transaction);
-        await ArtifactDAL.deleteArtifactByReleaseId(release.getId(), transaction);
-
-        const filename = artifact!.getFileName();
-        await FileStorageOperation.moveBinaryToTrashFolder(filename);
-
-        await transaction.commit();
-        Logger.info("Release successfully deleted");
-      } catch (error) {
-        Logger.error(error as string);
-        await transaction.rollback();
-        throw error;
-      }
-    }
-  }
-
-  // * Restores records in db and moves file from trash directory to main storage directory...
-  public async restoreRelease(pathParam: ReleaseIdPathParam): Promise<void> {
-    const { releaseId } = pathParam;
-
-    const release = await ReleaseDAL.findSoftDeletedReleaseByPublicId(releaseId);
-    if (!release) {
-      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
-    }
-
-    if (release.isProduction()) {
-      throw new ApiError("Production releases cannot be restored!", StatusCodes.BAD_REQUEST);
-    }
-
-    const transaction = await db.transaction();
-    try {
-      const artifact = await ArtifactDAL.findSoftDeletedArtifactByReleaseId(release.getId());
-      await artifact?.restore({ transaction: transaction });
-      await release.restore({ transaction: transaction });
-
-      const filename = artifact!.getFileName();
-      await FileStorageOperation.restoreBinaryToStorageFolder(filename);
-
-      await transaction.commit();
-      Logger.info("Release has been restored successfully!");
-    } catch (error) {
-      Logger.error(error as string);
-      await transaction.rollback();
-      throw error;
     }
   }
 
@@ -227,44 +174,62 @@ export class ArtifactReleaseService {
     apiKey: string,
   ): Promise<Nullable<ReleaseAttributesDTO>> {
     const { channel } = queryParam;
-
-    const { cacheKey: key, cachedData } = await this._cache.getChannelBased<ReleaseAttributesDTO>(
+    const { cacheKey, cachedData } = await this._cache.getChannelBased<ReleaseAttributesDTO>(
       projectId,
       channel,
     );
 
     if (cachedData) {
-      Logger.info(`Release ${key} cache hit!`);
+      Logger.info(`Release ${cacheKey} cache hit!`);
       return cachedData;
     }
 
-    const project = await ProjectDAL.findProjectByPublicIdAndApiKey(projectId, apiKey);
-    if (!project) {
-      throw new ApiError("Project not found!", StatusCodes.NOT_FOUND);
+    const isMutexLockAcquired = await this._cache.acquireMutexLock({ mutexKey: cacheKey });
+    if (!isMutexLockAcquired) {
+      Logger.info("Mutex lock already acquired!");
+      return cachedData;
     }
 
-    const release = await ReleaseDAL.getLatestRelease(project.getId(), channel ?? "staging");
-    if (!release) {
-      throw new ApiError(
-        `Latest ${channel ?? "staging"} release not found!`,
-        StatusCodes.NOT_FOUND,
+    try {
+      Logger.info("Mutex lock acquired!");
+      const project = await ProjectDAL.findProjectByPublicIdAndApiKey(projectId, apiKey);
+      if (!project) {
+        throw new ApiError("Project not found!", StatusCodes.NOT_FOUND);
+      }
+
+      const release = await ReleaseDAL.getLatestReleaseByProjectId(
+        project.getId(),
+        channel ?? "staging",
       );
+
+      if (!release) {
+        throw new ApiError(
+          `Latest ${channel ?? "staging"} release not found!`,
+          StatusCodes.NOT_FOUND,
+        );
+      }
+
+      const { isCached, cacheKey: key } = await this._cache.addChannelBased(
+        projectId,
+        release.toDTO(),
+        channel,
+      );
+
+      if (isCached) {
+        Logger.info(`Release ${key} added to cache!`);
+      }
+
+      return release.toDTO();
+    } catch (error) {
+      Logger.error((error as Error).message);
+      throw error;
+    } finally {
+      await this._cache.releaseMutexLock({ mutexKey: cacheKey });
+      Logger.info("Mutex lock released!");
     }
-
-    const { isCached, cacheKey } = await this._cache.addChannelBased(
-      projectId,
-      release.toDTO(),
-      channel,
-    );
-
-    if (isCached) {
-      Logger.info(`Release ${cacheKey} added to cache!`);
-    }
-
-    return release.toDTO();
   }
 
-  public async revoke(pathParam: ReleaseArtifactIdPathParams) {
+  public async revoke(pathParam: ReleaseArtifactIdPathParams): Promise<void> {
     const { releaseId, artifactId } = pathParam;
 
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
@@ -279,6 +244,11 @@ export class ArtifactReleaseService {
 
     if (!release.isProduction()) {
       throw new ApiError("Only production releases can be revoked only!", StatusCodes.BAD_REQUEST);
+    }
+
+    const latestRelease = await ReleaseDAL.getLatestProductionRelease();
+    if (releaseId !== latestRelease!.getPublicId()) {
+      throw new ApiError("Only latest production release can be revoked!", StatusCodes.BAD_REQUEST);
     }
 
     const transaction = await db.transaction();
@@ -311,7 +281,7 @@ export class ArtifactReleaseService {
       throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
-    const artifact = await ArtifactDAL.findArtifactById(artifactId);
+    const artifact = await ArtifactDAL.findReleaseArtifactById(release.getId(), artifactId);
     if (!artifact) {
       throw new ApiError("Artifact file not found!", StatusCodes.NOT_FOUND);
     }
@@ -345,22 +315,27 @@ export class ArtifactReleaseService {
         await ReleaseDAL.updateReleaseChannel(releaseId, "production", transaction);
         await ReleaseDAL.setProductionReleaseDate(releaseId, transaction);
         await transaction.commit();
-      } catch (error) {
-        Logger.error("Error ", error as string);
-        await transaction.rollback();
-        throw error;
-      } finally {
+
+        // * remove staging key from cache on promotion
+        // * but also try to remove the prior prod release from cache as well....
+        // * otherwise this release would be in production but devices
+        // * on the other hand would still be getting the stale prior prod release meta data
+        // * via [getLatestRelease]......
         const { staging, production } = await this._cache.invalidateCacheChannels(
           project.getPublicId(),
         );
 
-        if (staging.isCached) {
-          Logger.info(`Invalidated release ${staging.key} from cache!`);
+        if (staging.wasCached) {
+          Logger.info(`Invalidated staging release ${staging.key} from cache!`);
         }
 
-        if (production.isCached) {
-          Logger.info(`Invalidated release ${production.key} from cache!`);
+        if (production.wasCached) {
+          Logger.info(`Invalidated production release ${production.key} from cache!`);
         }
+      } catch (error) {
+        Logger.error("Error ", error as string);
+        await transaction.rollback();
+        throw error;
       }
     }
   }

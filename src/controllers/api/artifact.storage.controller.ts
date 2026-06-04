@@ -16,17 +16,17 @@ import { inject, injectable } from "tsyringe";
 export class ArtifactStorageController {
   constructor(
     @inject(ArtifactStorageService)
-    private readonly _storage: ArtifactStorageService
+    private readonly _storage: ArtifactStorageService,
   ) {}
 
   async deleteBlob(
     request: Request<ReleaseArtifactIdPathParams>,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       const params = await ReleaseArtifactIdPathParamsSchema.parseAsync(request.params);
-      await this._storage.deleteBlob(params);
+      await this._storage.remove(params);
       response.status(StatusCodes.NO_CONTENT).end();
     } catch (error) {
       next(error);
@@ -37,7 +37,7 @@ export class ArtifactStorageController {
   async streamDownload(
     request: Request<ReleaseArtifactIdPathParams>,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       const params = await ReleaseArtifactIdPathParamsSchema.parseAsync(request.params);
@@ -71,7 +71,7 @@ export class ArtifactStorageController {
   async upload(
     request: Request<ReleaseIdPathParam>,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     try {
       const params = await ReleaseIdPathParamSchema.parseAsync(request.params);
@@ -82,13 +82,11 @@ export class ArtifactStorageController {
       }
 
       if (request.file.mimetype !== "application/octet-stream") {
-        await this._storage.deleteBinaryFromStorage(request.file.filename);
         throw new ApiError("Only binary file is allowed!", StatusCodes.BAD_REQUEST);
       }
 
       // *restrict at nginx level as well....
       if (request.file.size >= MAX_FILE_SIZE_IN_BYTES) {
-        await this._storage.deleteBinaryFromStorage(request.file.filename);
         throw new ApiError("Max file size limit is upto 8mb!", StatusCodes.BAD_REQUEST);
       }
 

@@ -82,4 +82,24 @@ export class ProjectController {
       next(error);
     }
   }
+
+  async restoreProject(
+    request: Request<ProjectIdPathParam>,
+    response: Response<ProjectDeletedResponse>,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const param = await ProjectIdPathParamSchema.parseAsync(request.params);
+      await this._project.restoreProject(param.projectId);
+      response.status(StatusCodes.ACCEPTED).json({
+        message: "Project has been accepted for restoration!",
+        status: {
+          reason: getReasonPhrase(StatusCodes.ACCEPTED),
+          code: StatusCodes.ACCEPTED,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import { User } from "@models/user.model";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 
 export type GoogleOAuthUserData = {
   username: string;

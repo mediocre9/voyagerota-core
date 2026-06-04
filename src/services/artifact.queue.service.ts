@@ -1,158 +1,100 @@
-import { ArtifactInspectionQueue, TaskInputData, TaskOutputData } from "@queues/artifact.queue";
-import { NullableOrUndefined } from "@interfaces/common/common";
-import { Job, JobState } from "bullmq";
+import {
+  ArtifactInspectionQueue,
+  TaskArtifactInputData,
+  TaskArtifactOutputData,
+} from "@queues/artifact.queue";
 import { StatusCodes } from "http-status-codes";
 import { inject, injectable } from "tsyringe";
+import { QueueBaseService, QueueBaseStates, QueueBaseStatusMessage } from "./queue.base.service";
 
-export enum ArtifactJobStates {
-  ACTIVE = "ACTIVE",
-  DELAYED = "DELAYED",
-  WAITING = "WAITING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
-  UNKNOWN = "UNKNOWN",
-  PRIORITIZED = "PRIORITIZED",
-  WAITING_CHILDREN = "WAITING_CHILDREN",
-}
-
-export interface TaskStatusMessage {
+export interface TaskArtifactStatusMessage {
   message: string;
   statusCode: StatusCodes;
 }
 
-export interface TaskResultData {
+export interface TaskArtifactResultData {
   id: string;
   timestamps: number;
 }
 
-export interface TaskStatus {
-  status: TaskStatusMessage;
-  state: ArtifactJobStates;
-  data: TaskOutputData;
+export interface TaskArtifactStatus {
+  status: TaskArtifactStatusMessage;
+  state: QueueBaseStates;
+  data: TaskArtifactOutputData;
 }
 
 @injectable()
-export class ArtifactInspectionQueueService {
+export class ArtifactInspectionQueueService extends QueueBaseService<
+  TaskArtifactInputData,
+  TaskArtifactOutputData,
+  TaskArtifactResultData
+> {
   constructor(
     @inject(ArtifactInspectionQueue)
-    private readonly _queue: ArtifactInspectionQueue,
-  ) {}
+    private readonly _artifactQueue: ArtifactInspectionQueue,
+  ) {
+    super(_artifactQueue);
+  }
 
-  public async putJob(jobData: TaskInputData): Promise<TaskResultData> {
-    const job = await this._queue.enQueueArtifact(jobData);
+  override async putJob(jobData: TaskArtifactInputData): Promise<TaskArtifactResultData> {
+    const job = await this._artifactQueue.enQueueArtifact(jobData);
     return { id: job.id!, timestamps: job.timestamp };
   }
 
-  public async getJob(jobId: string): Promise<NullableOrUndefined<Job<unknown, TaskOutputData>>> {
-    return await this._queue.getJob(jobId);
-  }
-
-  public async isJobCompleted(jobId: string): Promise<NullableOrUndefined<boolean>> {
-    const job = await this._queue.getJob(jobId);
-    return job?.isCompleted();
-  }
-
-  public async getData(jobId: string): Promise<TaskOutputData> {
-    const job = await this._queue.getJob(jobId);
-    return job!.returnvalue;
-  }
-
-  public async getCurrentJobState(jobId: string): Promise<ArtifactJobStates> {
-    if (!(await this._isJobPresent(jobId))) {
-      throw new Error("Job not Found!");
-    }
-
-    const state = await this._getJobState(jobId);
-    switch (state) {
-      case "active":
-        return ArtifactJobStates.ACTIVE;
-
-      case "completed":
-        return ArtifactJobStates.COMPLETED;
-
-      case "delayed":
-        return ArtifactJobStates.DELAYED;
-
-      case "waiting":
-        return ArtifactJobStates.WAITING;
-
-      case "failed":
-        return ArtifactJobStates.FAILED;
-
-      case "prioritized":
-        return ArtifactJobStates.PRIORITIZED;
-
-      case "waiting-children":
-        return ArtifactJobStates.WAITING_CHILDREN;
-
-      default:
-        return ArtifactJobStates.UNKNOWN;
-    }
-  }
-
-  private async _getJobState(jobId: string): Promise<JobState | "unknown"> {
-    return await this._queue.getJobState(jobId);
-  }
-
-  private async _isJobPresent(jobId: string): Promise<boolean> {
-    const job = await this._queue.getJob(jobId);
-    return job !== undefined;
-  }
-
-  public getJobStatus(status: ArtifactJobStates): TaskStatusMessage {
-    const states = new Map<ArtifactJobStates, TaskStatusMessage>([
+  public getJobStatusMessage(state: QueueBaseStates): QueueBaseStatusMessage {
+    const states = new Map<QueueBaseStates, QueueBaseStatusMessage>([
       [
-        ArtifactJobStates.ACTIVE,
+        QueueBaseStates.ACTIVE,
         {
           message: "Artifact build detection is being processed. Please wait....",
           statusCode: StatusCodes.ACCEPTED,
         },
       ],
       [
-        ArtifactJobStates.COMPLETED,
+        QueueBaseStates.COMPLETED,
         {
           message: "Artifact build detection completed with results!",
           statusCode: StatusCodes.OK,
         },
       ],
       [
-        ArtifactJobStates.DELAYED,
+        QueueBaseStates.DELAYED,
         {
           message: "Artifact processing has been delayed!",
           statusCode: StatusCodes.ACCEPTED,
         },
       ],
       [
-        ArtifactJobStates.FAILED,
+        QueueBaseStates.FAILED,
         {
           message: "Artifact processing failed!",
           statusCode: StatusCodes.OK,
         },
       ],
       [
-        ArtifactJobStates.WAITING,
+        QueueBaseStates.WAITING,
         {
           message: "Artifact processing is in waiting mode.",
           statusCode: StatusCodes.ACCEPTED,
         },
       ],
       [
-        ArtifactJobStates.PRIORITIZED,
+        QueueBaseStates.PRIORITIZED,
         {
           message: "PRIORITIZED........",
           statusCode: StatusCodes.ACCEPTED,
         },
       ],
       [
-        ArtifactJobStates.WAITING_CHILDREN,
+        QueueBaseStates.WAITING_CHILDREN,
         {
           message: "WAITING_CHILDREN........",
           statusCode: StatusCodes.ACCEPTED,
         },
       ],
-      [ArtifactJobStates.UNKNOWN, { message: "UNKNOWN.....", statusCode: StatusCodes.ACCEPTED }],
+      [QueueBaseStates.UNKNOWN, { message: "UNKNOWN.....", statusCode: StatusCodes.ACCEPTED }],
     ]);
 
-    return states.get(status)!;
+    return states.get(state)!;
   }
 }

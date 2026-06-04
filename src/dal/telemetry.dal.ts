@@ -1,5 +1,5 @@
 import { Telemetry } from "@models/telemetry.model";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 
 import { Op, Transaction } from "sequelize";
 
@@ -21,11 +21,11 @@ export async function isTopicLimitReached(projectId: string): Promise<boolean> {
 export async function updateTopic(
   projectId: string,
   topic: string,
-  transactionInstance?: Transaction
+  transactionInstance?: Transaction,
 ): Promise<void> {
   await Telemetry.update(
     { topic: topic },
-    { where: { project_id_fk: projectId }, transaction: transactionInstance }
+    { where: { project_id_fk: projectId }, transaction: transactionInstance },
   );
 }
 
@@ -38,7 +38,7 @@ export async function enableTelemetry(projectId: number, username: string): Prom
 
 export async function deleteTelemetry(
   projectId: number,
-  transactionObject?: Transaction
+  transactionObject?: Transaction,
 ): Promise<void> {
   await Telemetry.destroy({
     where: {
@@ -51,7 +51,7 @@ export async function deleteTelemetry(
 
 export async function purgeAllTelemetry(
   date: Date,
-  transactionObject?: Transaction
+  transactionObject?: Transaction,
 ): Promise<void> {
   await Telemetry.destroy({
     where: {

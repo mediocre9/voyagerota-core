@@ -7,30 +7,26 @@
     </h3>
     <p align="center">
     &nbsp;
-    <a href="#"><img src="https://img.shields.io/badge/Built_With-Typescript-blue?style=flat-square&color=5a66f6"></a>
-    <a href="#"><img src="https://img.shields.io/badge/Platform-Backend-blue?style=flat-square&color=87314f"></a>
+    <a href="#"><img src="https://img.shields.io/badge/Platform-Backend-orange"></a>
     &nbsp;
-    <a href="https://github.com/mediocre9/VoyagerOTAClient"><img src="https://img.shields.io/badge/SDK-VoyagerOTAClient-blue?style=flat-square&color=583187"></a>
+    <a href="https://github.com/mediocre9/VoyagerOTAClient"><img src="https://img.shields.io/badge/SDK-VoyagerOTAClient-green"></a>
         &nbsp;
-    <a href="#"><img src="https://img.shields.io/badge/Device-ESP32-Blue?style=flat-square&color=57b578"></a>
-    <a href="https://github.com/mediocre9/voyager-ota/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square&color=5a66f6"></a>
+    <a href="#"><img src="https://img.shields.io/badge/MCU-ESP32-purple"></a>
+    <a href="https://github.com/mediocre9/voyager-ota/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue"></a>
     </p>
 </p>
 
 ## What is VoyagerOTA?
 
-VoyagerOTA is a backend platform for managing and distributing firmware updates over-the-air (OTA). It is designed for developers working with embedded devices, providing a structured way to handle firmware releases using monotonic semantic versioning.
-
-The platform supports drafting releases with metadata, validating uploaded binaries, and organizing deployments through staging and production channels. It includes safeguards such as duplicate binary detection, build-type validation, and version conflict prevention. Releases can be tested in staging before being promoted to production, and can be revoked if necessary.
+> VoyagerOTA is a backend platform for managing and distributing firmware updates over-the-air (OTA). It is designed for developers working with embedded devices especially the esp32, providing a structured way to handle firmware releases using monotonic semantic versioning.
 
 ## Features
 
-- [x] Draft releases with versioning and changelogs
-- [x] Prevent version collisions and duplicate binaries
-- [x] Automatic build type validation
-- [x] Staging channel for verified production builds
-- [x] Manual promotion to production
-- [x] Release revocation
+- [x] Monotonically increasing semantic versioning.
+- [x] Artifact build hash collision prevention across releases.
+- [x] Staging channel for production builds.
+- [x] Production release revocation support.
+- [x] Project Restoration support.
 
 ## Planned Features
 
@@ -47,8 +43,12 @@ npm install
 # then run server in development mode....
 npm run dev
 
-# and then run artifact worker separately.....
+# run each of them separately.....
 npm run artifact-worker
+npm run storage-worker
+npm run outbox-relay
+npm run orphan-cron
+npm run purger-cron
 ```
 
 ## Authentication & Project Setup
@@ -61,10 +61,10 @@ npm run artifact-worker
 ## Client Side Device Integration
 
 > [!TIP]
-> Use the official client sdk library [**voyagerota-client-lib**](https://github.com/mediocre9/VoyagerOTAClient) to handle OTA updates on ESP32 devices.
+> Use the official client sdk library [**VoyagerOTAClient**](https://github.com/mediocre9/VoyagerOTAClient) to handle OTA updates on ESP32 devices.
 
 ```cpp
-#define __ENABLE_DEVELOPMENT_MODE__ true
+#define __USE_STAGING_CHANNEL__ true
 #define CURRENT_FIRMWARE_VERSION "1.0.0"
 
 #include <VoyagerOTAClient.h>
@@ -105,13 +105,21 @@ void loop() {}
 
 > [!NOTE]
 >
-> 1. The `__ENABLE_DEVELOPMENT_MODE__` must be declared at the top either as true or false. As this compile time flag is required only for VoyagerOTA platform.
-> 2. Firmware uploaded to VoyagerOTA must be built with `__ENABLE_DEVELOPMENT_MODE__` false. Development compiled builds will be rejected by the VoyagerOTA platform.
+> 1. The `__USE_STAGING_CHANNEL__` must be declared at the top either as true or false. As this compile time flag is required only for VoyagerOTA platform.
+> 2. Firmware uploaded must be built with `__USE_STAGING_CHANNEL__` false. Development compiled builds will be rejected by backend.
 > 3. The library uses staging and production channels. Production builds first go to the **staging** channel for testing.
-> 4. On your local device, you can temporarily set `__ENABLE_DEVELOPMENT_MODE__` true to fetch the **staging** release.
+> 4. On your local device, you can temporarily set `__USE_STAGING_CHANNEL__` true to fetch the **production** release from staging channel.
 > 5. After testing, promote the release to **production** to make it available to all devices.
 
-## System High Level Architecture Diagram
+## Architecture
+
+- `ArtifactInspectionQueue` and `StorageManagerQueue` handle artifact processing and storage related operations asynchronously.
+- Outbox pattern is used for project deletion and restoration to keep database and file storage consistent.
+- Redis caching is used for the latest release endpoint with simple mutex lock is used to prevent cache stampede.
+- `OrphanFileCronJob` deletes soft-deleted records older than 3 months.
+- `PurgingCronJob` deletes orphan files not referenced in the database.
+
+### System High Level Architecture Diagram
 
 <p align="center">
   <img src="docs/1.png" width="100%" alt="Architecture Diagram"/>

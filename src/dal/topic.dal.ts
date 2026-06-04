@@ -1,5 +1,5 @@
 import { Topic } from "@models/topic.model";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 import { Transaction } from "sequelize";
 
 const MAX_TOPIC_LIMIT_PER_TELEMETRY = 5;
@@ -15,11 +15,11 @@ export async function findTopicByTelemetryId(telemetryId: string): Promise<Nulla
 export async function updateTopic(
   telemetryId: number,
   topic: string,
-  transactionInstance?: Transaction
+  transactionInstance?: Transaction,
 ): Promise<void> {
   await Topic.update(
     { topic: topic },
-    { where: { telemetry_id_fk: telemetryId }, transaction: transactionInstance }
+    { where: { telemetry_id_fk: telemetryId }, transaction: transactionInstance },
   );
 }
 

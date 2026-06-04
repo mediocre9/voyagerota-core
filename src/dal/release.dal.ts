@@ -3,7 +3,7 @@ import { Op } from "sequelize";
 import { Transaction } from "sequelize";
 import sequelize from "sequelize";
 import { Artifact } from "@models/artifact.model";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 
 export async function createRelease(
   projectId: number,
@@ -115,7 +115,7 @@ export async function getAllReleases(
   return releases;
 }
 
-export async function deleteAllReleases(
+export async function softDeleteAllReleases(
   projectId: number,
   transactionObject?: Transaction,
 ): Promise<void> {
@@ -152,12 +152,11 @@ export async function purgeAllReleases(date: Date, transactionObject?: Transacti
 export async function deleteReleaseByPublicId(
   publicId: string,
   transaction?: Transaction,
-  hardDelete: boolean = false,
 ): Promise<void> {
   await Release.destroy({
     where: { public_id: publicId },
     transaction: transaction,
-    force: hardDelete,
+    force: true,
   });
 }
 
@@ -169,11 +168,39 @@ export async function findReleaseByPublicId(publicId: string): Promise<Nullable<
   return release;
 }
 
+export async function findReleasesByProjectId(projectId: number): Promise<readonly Release[]> {
+  const releases = await Release.findAll({
+    where: { project_id_fk: projectId },
+  });
+
+  return releases;
+}
+
+export async function findSoftDeletedReleasesByProjectId(
+  projectId: number,
+): Promise<readonly Release[]> {
+  const releases = await Release.findAll({
+    where: { project_id_fk: projectId },
+    paranoid: false,
+  });
+
+  return releases;
+}
+
 export async function findSoftDeletedReleaseByPublicId(
   publicId: string,
 ): Promise<Nullable<Release>> {
   const release = await Release.findOne({
     where: { public_id: publicId },
+    paranoid: false,
+  });
+
+  return release;
+}
+
+export async function findSoftDeletedReleaseById(id: number): Promise<Nullable<Release>> {
+  const release = await Release.findOne({
+    where: { id: id },
     paranoid: false,
   });
 
@@ -188,7 +215,7 @@ export async function findReleaseByVersion(version: string): Promise<Nullable<Re
   return release;
 }
 
-export async function getLatestRelease(
+export async function getLatestReleaseByProjectId(
   projectId: number,
   channel: ReleaseChannel,
 ): Promise<Nullable<Release>> {
@@ -213,6 +240,17 @@ export async function getLatestRelease(
         attributes: ["public_id", "hash", "filename", "size"],
       },
     ],
+    order: [[sequelize.col("flatten_version"), "DESC"]],
+  });
+
+  return release;
+}
+
+export async function getLatestProductionRelease(): Promise<Nullable<Release>> {
+  const release = await Release.findOne({
+    where: {
+      channel: "production",
+    },
     order: [[sequelize.col("flatten_version"), "DESC"]],
   });
 

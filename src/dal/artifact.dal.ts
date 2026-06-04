@@ -1,9 +1,7 @@
 import { ArtifactBuildStatus, Artifact } from "@models/artifact.model";
-import { Nullable } from "@interfaces/common/common";
+import { Nullable } from "../types";
 import { Op } from "sequelize";
 import { Transaction } from "sequelize";
-import { Logger } from "@utils/logger";
-import { log } from "console";
 
 export async function findArtifactByFilename(filename: string): Promise<Nullable<Artifact>> {
   const found = await Artifact.findOne({
@@ -13,10 +11,31 @@ export async function findArtifactByFilename(filename: string): Promise<Nullable
   return found;
 }
 
+export async function findParanoidArtifactByFilename(
+  filename: string,
+): Promise<Nullable<Artifact>> {
+  const found = await Artifact.findOne({
+    where: {
+      filename: filename,
+    },
+    paranoid: false,
+  });
+
+  return found;
+}
+
+export async function findArtifactByReleaseId(releaseId: number): Promise<Nullable<Artifact>> {
+  const found = await Artifact.findOne({
+    where: { release_id_fk: releaseId },
+  });
+
+  return found;
+}
+
 export async function findProcessedArtifact(releaseId: number): Promise<Nullable<Artifact>> {
   const found = await Artifact.findOne({
     where: {
-      [Op.and]: [{ release_id_fk: releaseId }, { state: "pending" }],
+      [Op.and]: [{ release_id_fk: releaseId }, { state: "processed" }],
     },
   });
 
@@ -30,16 +49,29 @@ export async function findPendingArtifact(
   const found = await Artifact.findOne({
     where: {
       original_filename: filename,
+      // filename: filename,
       release_id_fk: releaseId,
       state: "pending",
     },
   });
+
   return found;
 }
 
 export async function findArtifactById(id: string): Promise<Nullable<Artifact>> {
   const found = await Artifact.findOne({
     where: { public_id: id },
+  });
+
+  return found;
+}
+
+export async function findReleaseArtifactById(
+  releaseId: number,
+  artifactId: string,
+): Promise<Nullable<Artifact>> {
+  const found = await Artifact.findOne({
+    where: { public_id: artifactId, release_id_fk: releaseId },
   });
 
   return found;
@@ -58,7 +90,7 @@ export async function findArtifact(
   filename: string,
 ): Promise<Nullable<Artifact>> {
   const found = await Artifact.findOne({
-    where: { release_id_fk: releaseId, original_filename: filename },
+    where: { release_id_fk: releaseId, filename: filename },
   });
 
   return found;
@@ -83,6 +115,17 @@ export async function findSoftDeletedArtifactByReleaseId(
   return found;
 }
 
+export async function findAllDeletedArtifactsByReleaseId(
+  releaseId: number,
+): Promise<readonly Artifact[]> {
+  const found = await Artifact.findAll({
+    where: { release_id_fk: releaseId },
+    paranoid: true,
+  });
+
+  return found;
+}
+
 export async function deleteArtifactByReleaseId(
   releaseId: number,
   transaction?: Transaction | null,
@@ -91,6 +134,17 @@ export async function deleteArtifactByReleaseId(
   await Artifact.destroy({
     where: { release_id_fk: releaseId },
     force: hardDelete,
+    transaction: transaction,
+  });
+}
+
+export async function softDeleteArtifactByReleaseId(
+  releaseId: number,
+  transaction?: Transaction | null,
+): Promise<void> {
+  await Artifact.destroy({
+    where: { release_id_fk: releaseId },
+    force: false,
     transaction: transaction,
   });
 }
