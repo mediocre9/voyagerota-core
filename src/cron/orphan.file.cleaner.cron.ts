@@ -10,6 +10,14 @@ function _isBinaryFile(filename: string): boolean {
   return path.extname(filename) === ".bin";
 }
 
+// * checks if file is 30 mins older.....
+function _isRecentlyUploaded(filename: string): boolean {
+  const MAX_TIME = isDevEnvironment() ? 60 * 1000 : (3600 / 2) * 1000; // dev 1 min ms and 30 mins in ms for prod....
+  const fileTimestamp = parseInt(filename.split("-").at(0)!);
+  const currentFileTimeDifference = Date.now() - fileTimestamp;
+  return MAX_TIME > currentFileTimeDifference;
+}
+
 // *Runs on sunday 2 times a day at 12:00am and 3:00am......
 // *for development 3 minutes.....
 const CRON_EXPRESSION = isDevEnvironment() ? "*/180 * * * * *" : "0 0 0,3 * * 7";
@@ -20,11 +28,9 @@ const OrphanFileCronJob = new CronJob(CRON_EXPRESSION, async () => {
   try {
     const files = await StorageManager.getDirentFiles();
     for (const file of files) {
-      if (!_isBinaryFile(file.name)) {
+      if (!_isBinaryFile(file.name) || _isRecentlyUploaded(file.name)) {
         continue;
       }
-
-      const artifact = await ArtifactDAL.findParanoidArtifactByFilename(file.name);
 
       // *if artifact does not exist On records
       // *try to delete the eligible orphan files
@@ -37,6 +43,7 @@ const OrphanFileCronJob = new CronJob(CRON_EXPRESSION, async () => {
         onDirectory: "trash",
       });
 
+      const artifact = await ArtifactDAL.findParanoidArtifactByFilename(file.name);
       const isOrphan = !artifact && !file.isDirectory();
       const isOrphanFileOnStorage = isOrphan && isOnStorage;
       const isOrphanFileOnTrash = isOrphan && isOnTrash;
