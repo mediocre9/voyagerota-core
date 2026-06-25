@@ -41,7 +41,7 @@ export class OutBox extends Model<InferAttributes<OutBox>, InferCreationAttribut
   }
 
   isProcessing() {
-    return this.state === OutBoxState.PROCESSED;
+    return this.state === OutBoxState.PROCESSING;
   }
 
   isFailed() {
