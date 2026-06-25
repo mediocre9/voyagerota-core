@@ -134,7 +134,9 @@ app.use("/api/v1/tasks", isAuthenticated, taskApiRouter);
 
 app.use("/internal/api/v1/releases", deviceReleaseApiRouter);
 
-app.use((_: Request, response: Response, __: NextFunction) => response.render("404"));
+app.use((_: Request, response: Response, __: NextFunction) => {
+  response.status(StatusCodes.NOT_FOUND).render("404");
+});
 
 app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
   Logger.error(error.message);
