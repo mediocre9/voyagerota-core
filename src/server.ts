@@ -28,6 +28,8 @@ import { RedisStore } from "connect-redis";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(cors());
 
 // todo: enable it later..
