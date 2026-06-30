@@ -43,7 +43,7 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(express.json());
 
-app.use(morgan("combined"));
+app.use(morgan("combine"));
 
 const store = new RedisStore({
   client: redis,
@@ -130,8 +130,8 @@ app.use("/auth", authWebRouter);
 app.use("/dashboard", isAuthenticated, projectWebRouter);
 app.use("/dashboard/projects", isAuthenticated, releaseWebRouter);
 
-app.use("/api/v1/workspace", projectApiRouter);
-app.use("/api/v1/workspace/projects", releaseApiRouter);
+app.use("/api/v1/workspace", isAuthenticated, projectApiRouter);
+app.use("/api/v1/workspace/projects", isAuthenticated, releaseApiRouter);
 app.use("/api/v1/tasks", isAuthenticated, taskApiRouter);
 
 app.use("/internal/api/v1/releases", deviceReleaseApiRouter);
