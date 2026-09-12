@@ -18,7 +18,7 @@
     "sandbox": "npx tsx --watch sandbox/sandbox.ts"
   },
   "author": "Mediocre9",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@getbrevo/brevo": "^6.0.3",
     "axios": "^1.13.2",
