@@ -57,7 +57,6 @@ const dormantProjectCron = new CronJob(CRON_EXPRESSION, async (): Promise<void> 
         body: template,
       });
       Logger.info(`Enqueued dormant project for email ${project.getPublicId()}`);
-      continue;
     }
   }
 });
