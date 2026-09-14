@@ -15,9 +15,9 @@ function _getEmailTemplateType(channel: NonProductionChannel): EmailTemplate {
   return channel === "draft" ? EmailTemplate.DRAFT_RELEASE : EmailTemplate.STAGING_RELEASE;
 }
 
-function _getScheduledDeletionDate(lastActitity: Date): string {
+function _getScheduledDeletionDate(lastActivity: Date): string {
   const MAX_DAYS_IN_MILLISECONDS = 604800000; // 7days....
-  return new Date(new Date(lastActitity).getTime() + MAX_DAYS_IN_MILLISECONDS).toDateString();
+  return new Date(new Date(lastActivity).getTime() + MAX_DAYS_IN_MILLISECONDS).toDateString();
 }
 
 // * Runs daily at 12:00am....
