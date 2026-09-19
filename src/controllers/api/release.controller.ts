@@ -98,7 +98,7 @@ export class ArtifactReleaseController {
     try {
       const param = await ReleaseIdPathParamSchema.parseAsync(request.params);
       await this._release.removeRelease(param);
-      response.status(StatusCodes.ACCEPTED).json({
+      response.status(StatusCodes.OK).json({
         message: "Release has been removed!",
         status: {
           reason: getReasonPhrase(StatusCodes.OK),
