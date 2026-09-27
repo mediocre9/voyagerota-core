@@ -1,1 +1,3 @@
-src/views/** linguist-vendored
+* linguist-vendored
+*.ts linguist-detectable
+*.tsx linguist-detectable
