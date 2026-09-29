@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
   filename: function (_, file, callback) {
     const id = crypto.randomUUID();
     const timestamps = Date.now();
-    const uniqueFilename = `${timestamps}-${id}${path.extname(file.originalname)}`;
+    const uniqueFilename = `${timestamps}-${id}-${path.extname(file.originalname)}`;
     callback(null, uniqueFilename);
   },
 });
