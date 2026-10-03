@@ -1,3 +1,2 @@
 * linguist-vendored
 *.ts linguist-vendored=false linguist-detectable=true
-*.tsx linguist-vendored=false linguist-detectable=true
