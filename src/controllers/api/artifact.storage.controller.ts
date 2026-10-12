@@ -93,7 +93,7 @@ export class ArtifactStorageController {
       const artifact = await this._storage.save(request.file, params);
       response.status(StatusCodes.CREATED).json({
         id: artifact.id,
-        filename: request.file?.filename,
+        filename: request.file?.originalname,
         status: {
           reason: getReasonPhrase(StatusCodes.CREATED),
           code: StatusCodes.CREATED,
