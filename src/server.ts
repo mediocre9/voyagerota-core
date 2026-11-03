@@ -22,8 +22,8 @@ import helmet from "helmet";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import * as UserDAL from "@dal/user.dal";
-import * as OAuthCreds from "../oauth-client-secret.json";
 import { EnvConfig, isDevEnvironment } from "@config/config";
+import { resolveGoogleOAuthConfig } from "@config/oauth.config";
 import { RedisStore } from "connect-redis";
 
 const app = express();
@@ -72,41 +72,60 @@ app.use(express.static(path.join(import.meta.dirname, "..", "public")));
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: OAuthCreds.web.client_id,
-      clientSecret: OAuthCreds.web.client_secret,
-      callbackURL: isDevEnvironment()
-        ? OAuthCreds.web.redirect_uris[0]
-        : OAuthCreds.web.redirect_uris[1],
-    },
-    function (_, __, profile, callback) {
-      UserDAL.createOAuthUser({
-        email: profile.emails![0].value,
-        googleId: profile.id,
-        googleProfilePic: profile.photos![0].value,
-        username: profile.displayName,
-      })
-        .then(([user, _]) => {
-          callback(null, user.public_id);
+const { credentials: googleOAuthCredentials, missing: missingGoogleOAuthConfig } =
+  resolveGoogleOAuthConfig();
+
+if (googleOAuthCredentials) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: googleOAuthCredentials.clientID,
+        clientSecret: googleOAuthCredentials.clientSecret,
+        callbackURL: googleOAuthCredentials.callbackURL,
+      },
+      function (_, __, profile, callback) {
+        UserDAL.createOAuthUser({
+          email: profile.emails![0].value,
+          googleId: profile.id,
+          googleProfilePic: profile.photos![0].value,
+          username: profile.displayName,
         })
-        .catch((error) => {
-          callback(error);
-        });
-    },
-  ),
-);
+          .then(([user, _]) => {
+            callback(null, user.public_id);
+          })
+          .catch((error) => {
+            callback(error);
+          });
+      },
+    ),
+  );
+} else if (isDevEnvironment()) {
+  Logger.warn(
+    `Google OAuth is not configured. Missing: ${missingGoogleOAuthConfig.join(", ")}. OAuth login is disabled.`,
+  );
+} else {
+  throw new Error(
+    `Google OAuth is not configured. Missing: ${missingGoogleOAuthConfig.join(", ")}.`,
+  );
+}
 
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+if (googleOAuthCredentials) {
+  app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "/",
-    successRedirect: "/dashboard",
-  }),
-);
+  app.get(
+    "/auth/google/callback",
+    passport.authenticate("google", {
+      failureRedirect: "/",
+      successRedirect: "/dashboard",
+    }),
+  );
+} else {
+  const oauthUnavailable = (_: Request, response: Response) =>
+    response.status(StatusCodes.SERVICE_UNAVAILABLE).send("Google OAuth is not configured.");
+
+  app.get("/auth/google", oauthUnavailable);
+  app.get("/auth/google/callback", oauthUnavailable);
+}
 
 passport.serializeUser((userId, done) => {
   done(null, userId);
