@@ -86,8 +86,8 @@ export class ArtifactStorageController {
       }
 
       // *restrict at nginx level as well....
-      if (request.file.size >= MAX_FILE_SIZE_IN_BYTES) {
-        throw new ApiError("Max file size limit is upto 8mb!", StatusCodes.BAD_REQUEST);
+      if (request.file.size > MAX_FILE_SIZE_IN_BYTES) {
+        throw new ApiError("Max file size limit is 8mb!", StatusCodes.BAD_REQUEST);
       }
 
       const artifact = await this._storage.save(request.file, params);
