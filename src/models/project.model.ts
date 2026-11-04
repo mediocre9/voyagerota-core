@@ -119,7 +119,13 @@ Project.init(
       allowNull: true,
       defaultValue: false,
     },
-    last_activity: { type: DataTypes.DATE, allowNull: true, defaultValue: new Date() },
+    last_activity: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue() {
+        return new Date();
+      },
+    },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: true,
