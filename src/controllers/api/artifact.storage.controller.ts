@@ -1,6 +1,7 @@
 import {
   ReleaseArtifactIdPathParams,
   ReleaseArtifactIdPathParamsSchema,
+  ReleaseDownloadHeaderSchema,
   ReleaseIdPathParam,
   ReleaseIdPathParamSchema,
 } from "@schemas/release.schema";
@@ -9,7 +10,6 @@ import { ApiError } from "@utils/error";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import * as fs from "node:fs";
-import * as ArtifactDAL from "@dal/artifact.dal";
 import { inject, injectable } from "tsyringe";
 
 @injectable()
@@ -41,28 +41,20 @@ export class ArtifactStorageController {
   ): Promise<void> {
     try {
       const params = await ReleaseArtifactIdPathParamsSchema.parseAsync(request.params);
+      const headers = await ReleaseDownloadHeaderSchema.parseAsync({
+        apiKey: request.get("x-api-key"),
+        projectId: request.get("x-project-id"),
+      });
 
-      const apiKey = request.get("x-api-key");
-      const projectId = request.get("x-project-id");
+      const { path: filePath, artifact } = await this._storage.getBinaryFilePath({
+        ...params,
+        ...headers,
+      });
 
-      if (!apiKey) {
-        throw new ApiError("x-api-key header is required!", StatusCodes.BAD_REQUEST);
-      }
-
-      if (!projectId) {
-        throw new ApiError("x-project-id header is required!", StatusCodes.BAD_REQUEST);
-      }
-
-      const path = await this._storage.getBinaryFilePath(params);
-
-      const artifact = await ArtifactDAL.findArtifactById(params.artifactId);
-      if (!artifact) {
-        throw new ApiError("Artifact not found!", StatusCodes.BAD_REQUEST);
-      }
-      response.setHeader("content-length", artifact.size!);
+      response.setHeader("content-length", artifact.getFileSize());
       response.setHeader("content-type", "application/octet-stream");
       response.setHeader("cache-control", "no-cache");
-      fs.createReadStream(path).pipe(response);
+      fs.createReadStream(filePath).pipe(response);
     } catch (error) {
       next(error);
     }

@@ -3,7 +3,11 @@ import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { ArtifactDTO } from "@models/release.model";
-import { ReleaseArtifactIdPathParams, ReleaseIdPathParam } from "@schemas/release.schema";
+import {
+  ReleaseArtifactIdPathParams,
+  ReleaseDownloadHeader,
+  ReleaseIdPathParam,
+} from "@schemas/release.schema";
 import { StorageManager } from "@services/storage.manager";
 import { ApiError } from "@utils/error";
 import { Logger } from "@utils/logger";
@@ -13,6 +17,7 @@ import { StatusCodes } from "http-status-codes";
 import multer from "multer";
 import * as path from "node:path";
 import { inject, injectable } from "tsyringe";
+import { ArtifactBinaryDownload } from "../types";
 import { ReleaseCacheService } from "./cache.service";
 
 const storage = multer.diskStorage({
@@ -84,17 +89,28 @@ export class ArtifactStorageService {
     }
   }
 
-  public async getBinaryFilePath(params: ReleaseArtifactIdPathParams): Promise<string> {
-    const { releaseId, artifactId } = params;
-    const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
-    if (!release) {
-      throw new ApiError("Release not found!", StatusCodes.BAD_REQUEST);
+  public async getBinaryFilePath(
+    params: ReleaseArtifactIdPathParams & ReleaseDownloadHeader,
+  ): Promise<ArtifactBinaryDownload> {
+    const { releaseId, artifactId, projectId, apiKey } = params;
+
+    const project = await ProjectDAL.findProjectByPublicIdAndApiKey(projectId, apiKey);
+    if (!project) {
+      throw new ApiError("Invalid project credentials!", StatusCodes.UNAUTHORIZED);
     }
 
-    const artifact = await ArtifactDAL.findArtifactById(artifactId);
+    const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
+    if (!release) {
+      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
+    }
 
+    if (release.getProjectForeignKeyId() !== project.getId()) {
+      throw new ApiError("Release not found for the given project!", StatusCodes.FORBIDDEN);
+    }
+
+    const artifact = await ArtifactDAL.findReleaseArtifactById(release.getId(), artifactId);
     if (!artifact) {
-      throw new ApiError("artifact not found!", StatusCodes.NOT_FOUND);
+      throw new ApiError("Artifact not found!", StatusCodes.NOT_FOUND);
     }
 
     const pathToFile = path.join(
@@ -102,7 +118,7 @@ export class ArtifactStorageService {
       artifact.getFileName(),
     );
 
-    return pathToFile;
+    return { path: pathToFile, artifact };
   }
 
   public async save(

@@ -1,6 +1,12 @@
+import { Artifact } from "@models/artifact.model";
 import { Release, ReleaseAttributesDTO } from "@models/release.model";
 import { TaskArtifactStatus } from "@services/artifact.queue.service";
 import { ProjectDTOFields } from "@services/project.service";
+
+export interface ArtifactBinaryDownload {
+  path: string;
+  artifact: Artifact;
+}
 
 export type Nullable<T> = T | null;
 export type NullableOrUndefined<T> = T | null | undefined;
