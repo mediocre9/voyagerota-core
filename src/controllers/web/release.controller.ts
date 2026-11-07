@@ -1,5 +1,6 @@
 import { ProjectIdPathParam, ProjectIdPathParamSchema } from "@schemas/project.schema";
 import {
+  ReleaseBaseQueryParam,
   ReleaseBaseQueryParamSchema,
   ReleaseIdQueryParam,
   ReleaseIdQueryParamSchema,
@@ -15,6 +16,13 @@ import { inject, injectable } from "tsyringe";
 import { ReleaseArtifactCreationResponse } from "../../types";
 import { ZodError } from "zod";
 import prettyBytes from "pretty-bytes";
+
+type GetReleasesRequest = Request<
+  ProjectIdPathParam, // params
+  undefined, // res body
+  undefined, // req body
+  ReleaseBaseQueryParam // query
+>;
 
 @injectable()
 export class ArtifactReleaseController {
@@ -46,13 +54,13 @@ export class ArtifactReleaseController {
   }
 
   async getReleases(
-    request: Request<ProjectIdPathParam>,
+    request: GetReleasesRequest,
     response: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
       const param = await ProjectIdPathParamSchema.parseAsync(request.params);
-      const query = await ReleaseBaseQueryParamSchema.parseAsync(request.params);
+      const query = await ReleaseBaseQueryParamSchema.parseAsync(request.query);
       const releases = await this._release.getAllReleases(param, query);
       const project = await this._project.findProjectByPublicId(param.projectId);
       response.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
