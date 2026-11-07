@@ -1,4 +1,5 @@
 import { db } from "../config/db.config";
+import { isDevEnvironment } from "../config/config";
 import { User } from "./user.model";
 import { Project } from "./project.model";
 import { Release } from "./release.model";
@@ -15,14 +16,18 @@ Artifact.belongsTo(Release, { foreignKey: "release_id_fk" });
 Device.belongsTo(Release, { foreignKey: "release_id_fk" });
 Release.hasMany(Device, { foreignKey: "release_id_fk" });
 
-try {
-  await db.sync();
-  Logger.info("Models Synced!");
-} catch (error) {
-  if (typeof error === "string") {
-    Logger.error(error);
+if (isDevEnvironment()) {
+  try {
+    await db.sync();
+    Logger.info("Models Synced!");
+  } catch (error) {
+    if (typeof error === "string") {
+      Logger.error(error);
+    }
+    Logger.error((error as Error).message);
   }
-  Logger.error((error as Error).message);
+} else {
+  Logger.info("Skipping db.sync() outside development! Apply schema changes via migrations.");
 }
 
 export { User, Project, Release, Artifact as ArtifactFile };

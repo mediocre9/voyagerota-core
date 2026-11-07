@@ -3,8 +3,8 @@
 Backend platform for managing over-the-air (OTA) firmware releases for embedded devices.
 
 [![License](https://img.shields.io/github/license/mediocre9/voyagerota-core?color=0891B2)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-24.3.0-339933?logo=node.js\&logoColor=white)](#)
-[![SDK](https://img.shields.io/github/v/release/mediocre9/VoyagerOTAClient?label=VoyagerOTAClient%20SDK\&color=8B5CF6)](https://github.com/mediocre9/VoyagerOTAClient/releases)
+[![Node.js](https://img.shields.io/badge/node-24.3.0-339933?logo=node.js&logoColor=white)](#)
+[![SDK](https://img.shields.io/github/v/release/mediocre9/VoyagerOTAClient?label=VoyagerOTAClient%20SDK&color=8B5CF6)](https://github.com/mediocre9/VoyagerOTAClient/releases)
 
 ## What is VoyagerOTA?
 
