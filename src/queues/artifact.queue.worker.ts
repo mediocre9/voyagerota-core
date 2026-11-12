@@ -1,8 +1,11 @@
+import "reflect-metadata";
 import { db } from "@config/db.config";
 import { redis as RedisConnection } from "@config/redis.connection.config";
 import * as ArtifactDAL from "@dal/artifact.dal";
+import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { ArtifactBuildStatus } from "@models/artifact.model";
+import { ReleaseCacheService } from "@services/cache.service";
 import { StorageManager } from "@services/storage.manager";
 import { Logger } from "@utils/logger";
 import { computeElapsedTimeAsync } from "@utils/performance";
@@ -112,6 +115,24 @@ function _prepareBuildMessages(
   };
 }
 
+// staging devices must see the new staging release right away, not a cached older one....
+async function _invalidateStagingCache(releaseId: string): Promise<void> {
+  try {
+    const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
+    const project = release
+      ? await ProjectDAL.findProjectByInternalId(release.getProjectForeignKeyId())
+      : null;
+    if (!project) return;
+    const { isInvalidated, cacheKey } = await new ReleaseCacheService().invalidateCache(
+      project.getPublicId(),
+      "staging",
+    );
+    if (isInvalidated) Logger.info(`Invalidated release ${cacheKey} from cache!`);
+  } catch (error) {
+    Logger.error(`Staging cache invalidation failed: ${(error as Error).message}`);
+  }
+}
+
 async function _promoteReleaseToStagingState(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
 ): Promise<void> {
@@ -126,6 +147,7 @@ async function _promoteReleaseToStagingState(
     await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "staging", transaction);
     await transaction.commit();
     Logger.info("Release has been promoted to staging state!");
+    await _invalidateStagingCache(job.data.releaseId);
   } catch (error) {
     await transaction.rollback();
     Logger.error(error as string);
@@ -142,6 +164,7 @@ async function _demoteReleaseToDraftState(
     await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, transaction, true);
     await transaction.commit();
     Logger.info("Release has been demoted to draft state!");
+    await _invalidateStagingCache(job.data.releaseId);
   } catch (error) {
     await transaction.rollback();
     Logger.error(error as string);
