@@ -21,7 +21,7 @@ const token = new Map<ArtifactBuildStatus, string>([
 
 type VersionMatchStatus = "matched" | "not-matched";
 
-// VoyagerOTAClient (6.1.0+) embeds "VYGR_FW_VERSION:<CURRENT_FIRMWARE_VERSION>;" in the binary....
+// VoyagerOTAClient 6 embeds "VYGR_FW_VERSION:<CURRENT_FIRMWARE_VERSION>;" in the binary....
 const ___VYGR_VERSION_MARKER___ = /VYGR_FW_VERSION:([0-9A-Za-z.+-]{1,32});/;
 
 type BuildInspectionResult = {
