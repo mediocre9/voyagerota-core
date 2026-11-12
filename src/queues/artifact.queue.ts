@@ -17,8 +17,11 @@ export interface TaskArtifactInputData {
 export interface TaskArtifactOutputData {
   artifactId: string;
   artifactStatus: "accepted" | "rejected";
-  detectedBinary: ArtifactBuildStatus;
-  message: string;
+  buildStatus: ArtifactBuildStatus;
+  matchResults: {
+    buildStatusMessage: string;
+    versionMatchMessage: string;
+  };
   elapsedTime: number;
 }
 

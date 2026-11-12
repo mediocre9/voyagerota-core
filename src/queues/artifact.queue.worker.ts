@@ -10,6 +10,8 @@ import { Worker as ArtifactInspectionWorker, Job } from "bullmq";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as ArtifactQueue from "./artifact.queue";
+import { ApiError } from "@utils/error";
+import { StatusCodes } from "http-status-codes";
 
 const ___VYGR_STAGING_MARKER___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
 const ___VYGR_PRODUCTION_MARKER___ = "$2y$10$DX0bqDwfQtWJkBPgiXHVqOcbjOoX5i9cRHxSTgK3xgjTHpy5EGNbO";
@@ -19,9 +21,16 @@ const token = new Map<ArtifactBuildStatus, string>([
   ["production-build", ___VYGR_PRODUCTION_MARKER___],
 ]);
 
-async function _inspectFileForBuildStatus(
+type VersionMatchStatus = "matched" | "not-matched";
+
+type BuildInspectionResult = {
+  buildStatus: ArtifactBuildStatus;
+  versionMatchStatus: VersionMatchStatus;
+};
+
+async function _inspectBinaryFile(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
-): Promise<ArtifactBuildStatus> {
+): Promise<BuildInspectionResult> {
   const pathToFile = path.join(StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH, job.data.filename);
   const contents = await fs.readFile(pathToFile, { encoding: "ascii" });
 
@@ -31,29 +40,53 @@ async function _inspectFileForBuildStatus(
   } else if (contents.includes(token.get("production-build")!)) {
     status = "production-build";
   }
-  return status;
+
+  const release = await ReleaseDAL.findReleaseByPublicId(job.data.releaseId);
+  if (!release) {
+    throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
+  }
+
+  const versionStatus: VersionMatchStatus = contents.includes(release.getVersion())
+    ? "matched"
+    : "not-matched";
+
+  return {
+    buildStatus: status,
+    versionMatchStatus: versionStatus,
+  };
 }
 
-function _getBuildStatusMessage(status: ArtifactBuildStatus): string {
-  const message: Record<ArtifactBuildStatus, string> = {
-    "production-build": "Release has been promoted to staging state!",
-    "staging-build": "Staging build detected! Only production build is allowed!",
-    "unknown-build": "Unknown build type detected! Only production build is allowed!",
+function _prepareBuildMessages(
+  buildMessage: ArtifactBuildStatus,
+  versionMessage: VersionMatchStatus,
+): { buildMessage: string; versionMessage: string } {
+  const buildMessages: Record<ArtifactBuildStatus, string> = {
+    "production-build": "Passed: Production channel build found!",
+    "staging-build":
+      "Failed: Staging channel build found! Only production channel build is allowed!",
+    "unknown-build": "Failed: Unknown build type found! Only production channel build is allowed!",
   };
 
-  return message[status];
+  const versionMessages: Record<VersionMatchStatus, string> = {
+    "not-matched": "Failed: Binary version does not match with release version!",
+    matched: "Passed: Release and binary version correct!",
+  };
+
+  return {
+    buildMessage: buildMessages[buildMessage],
+    versionMessage: versionMessages[versionMessage],
+  };
 }
 
-async function _markReleaseAsStaging(
+async function _promoteReleaseToStagingState(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
-  status: ArtifactBuildStatus,
 ): Promise<void> {
   const transaction = await db.transaction();
   try {
     await ArtifactDAL.updateArtifactStatus(
       job.data.releaseInternalId,
       job.data.filename,
-      status,
+      "staging-build",
       transaction,
     );
     await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "staging", transaction);
@@ -66,29 +99,45 @@ async function _markReleaseAsStaging(
   }
 }
 
+async function _demoteReleaseToDraftState(
+  job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
+): Promise<void> {
+  const transaction = await db.transaction();
+  try {
+    await ReleaseDAL.updateReleaseChannel(job.data.releaseId, "draft", transaction);
+    await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, transaction, true);
+    await transaction.commit();
+    Logger.info("Release has been demoted to draft state!");
+  } catch (error) {
+    await transaction.rollback();
+    Logger.error(error as string);
+    throw error;
+  }
+}
+
 async function _fileProcessor(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
 ): Promise<ArtifactQueue.TaskArtifactOutputData> {
-  const status = await _inspectFileForBuildStatus(job);
+  const { buildStatus, versionMatchStatus } = await _inspectBinaryFile(job);
 
+  const isBuildCorrect = buildStatus === "production-build" && versionMatchStatus === "matched";
   const elapsedTime = await computeElapsedTimeAsync(async () => {
-    if (status === "production-build") {
-      await _markReleaseAsStaging(job, status);
+    if (isBuildCorrect) {
+      await _promoteReleaseToStagingState(job);
+    } else {
+      await _demoteReleaseToDraftState(job);
     }
   });
 
-  const isNotProdBuild = status !== "production-build";
-  if (isNotProdBuild) {
-    await ArtifactDAL.deleteArtifactByReleaseId(job.data.releaseInternalId, null, true);
-    Logger.info(`${status} - ${job.data.filename} has been permanently removed from worker!`);
-  }
-
-  const message = _getBuildStatusMessage(status);
+  const { buildMessage, versionMessage } = _prepareBuildMessages(buildStatus, versionMatchStatus);
   const result = {
     artifactId: job.data.artifactId,
-    artifactStatus: status === "production-build" ? "accepted" : "rejected",
-    detectedBinary: status,
-    message: message,
+    artifactStatus: isBuildCorrect ? "accepted" : "rejected",
+    buildStatus: buildStatus,
+    matchResults: {
+      buildStatusMessage: buildMessage,
+      versionMatchMessage: versionMessage,
+    },
     elapsedTime: elapsedTime / 1000, // in seconds......
   };
 
