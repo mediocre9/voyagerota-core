@@ -1,5 +1,8 @@
 import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ReleaseDAL from "@dal/release.dal";
+import * as ProjectDAL from "@dal/project.dal";
+import { User } from "@models/user.model";
+import { TaskArtifactInputData } from "@queues/artifact.queue";
 import { ArtifactTaskDTO } from "@schemas/artifact.schema";
 import { ApiError } from "@utils/error";
 import { StatusCodes } from "http-status-codes";
@@ -18,11 +21,11 @@ export class ArtifactInspectionTaskService {
     private readonly _queue: ArtifactInspectionQueueService,
   ) {}
 
-  public async createTask(dto: ArtifactTaskDTO): Promise<TaskArtifactResultData> {
+  public async createTask(dto: ArtifactTaskDTO, owner: User): Promise<TaskArtifactResultData> {
     const { releaseId, filename } = dto;
 
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
-    if (!release) {
+    if (!release || !(await this._isReleaseOwnedBy(release.getProjectForeignKeyId(), owner))) {
       throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
@@ -49,11 +52,17 @@ export class ArtifactInspectionTaskService {
     return taskResult;
   }
 
-  public async getTaskStatus(pathParam: TaskIdPathParam): Promise<TaskArtifactStatus> {
+  public async getTaskStatus(pathParam: TaskIdPathParam, owner: User): Promise<TaskArtifactStatus> {
     const { taskId } = pathParam;
     const job = await this._queue.getJob(taskId);
 
     if (!job) {
+      throw new ApiError("Task not found!", StatusCodes.NOT_FOUND);
+    }
+
+    const { releaseInternalId } = job.data as TaskArtifactInputData;
+    const release = await ReleaseDAL.getReleaseById(releaseInternalId);
+    if (!release || !(await this._isReleaseOwnedBy(release.getProjectForeignKeyId(), owner))) {
       throw new ApiError("Task not found!", StatusCodes.NOT_FOUND);
     }
 
@@ -67,5 +76,10 @@ export class ArtifactInspectionTaskService {
     };
 
     return taskStatus;
+  }
+
+  private async _isReleaseOwnedBy(projectInternalId: number, owner: User): Promise<boolean> {
+    const project = await ProjectDAL.findProjectByInternalId(projectInternalId);
+    return project !== null && project.getUserForeignKey() === owner.getId();
   }
 }

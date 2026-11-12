@@ -22,7 +22,8 @@ export class ProjectController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { userId, projectName, boardType } = await ProjectSchema.parseAsync(request.body);
+      const { projectName, boardType } = await ProjectSchema.parseAsync(request.body);
+      const userId = (request.user as unknown as User).public_id!;
       await this._project.createProject(userId, projectName, boardType);
       response.redirect(request.originalUrl);
     } catch (error) {

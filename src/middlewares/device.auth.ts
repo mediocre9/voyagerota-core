@@ -10,9 +10,6 @@ export const DeviceHeaders = {
   PROJECT_ID: "x-project-id",
 } as const;
 
-/**
- * Locals attached by {@link authenticateDevice} for device facing routes.
- */
 export type DeviceLocals = { project: Project };
 
 function isSameSecret(a: string, b: string): boolean {
@@ -21,15 +18,7 @@ function isSameSecret(a: string, b: string): boolean {
   return crypto.timingSafeEqual(left, right);
 }
 
-/**
- * @description Authenticates end devices (VoyagerOTAClient) via the
- * `x-project-id` and `x-api-key` headers. On success the resolved project is
- * attached to `response.locals.project` so every downstream handler is scoped
- * to the caller's own project.
- *
- * Invalid or unknown credentials always return the same 401 so callers can't
- * tell whether a project id exists.
- */
+// devices auth via x-project-id + x-api-key, same 401 for every bad combo so project ids don't leak....
 export async function authenticateDevice(
   request: Request,
   response: Response<unknown, DeviceLocals>,

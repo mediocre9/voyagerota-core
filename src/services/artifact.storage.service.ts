@@ -47,7 +47,7 @@ export class ArtifactStorageService {
       throw new ApiError("Release not found!", StatusCodes.BAD_REQUEST);
     }
 
-    const artifact = await ArtifactDAL.findArtifactById(artifactId);
+    const artifact = await ArtifactDAL.findReleaseArtifactById(release.getId(), artifactId);
 
     if (!artifact) {
       throw new ApiError("Artifact not found!", StatusCodes.NOT_FOUND);
@@ -87,15 +87,7 @@ export class ArtifactStorageService {
     }
   }
 
-  /**
-   * @description Resolves a downloadable firmware binary for an authenticated device.
-   * The release must belong to the caller's project and be released (staging or
-   * production), and the artifact must belong to that release and be processed.
-   * Everything else is reported as not found so ids from other projects don't leak.
-   *
-   * `releasedOnly: false` (dashboard downloads) skips the channel and state checks so
-   * owners can still download draft builds, but keeps the project scoping.
-   */
+  // releasedOnly: devices only get processed staging/production builds, dashboard can get drafts....
   public async getDownloadableArtifact(
     params: ReleaseArtifactIdPathParams,
     project: Project,

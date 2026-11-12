@@ -169,13 +169,7 @@ export class ArtifactReleaseService {
     return releases.map((e) => e.toDTO());
   }
 
-  /**
-   * @description Returns the latest release of the given channel for an already
-   * authenticated project (see `authenticateDevice` middleware).
-   *
-   * Cache stampede guard: only the mutex holder fills the cache. Requests that lose
-   * the race read straight from the DB instead of returning nothing.
-   */
+  // only the mutex holder fills the cache, losers read straight from the DB....
   public async getLatestRelease(
     queryParam: ReleaseChannelQueryParam,
     project: Project,
@@ -238,7 +232,7 @@ export class ArtifactReleaseService {
       throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
-    const artifact = await ArtifactDAL.findArtifactById(artifactId);
+    const artifact = await ArtifactDAL.findReleaseArtifactById(release.getId(), artifactId);
     if (!artifact) {
       throw new ApiError("Artifact file not found!", StatusCodes.NOT_FOUND);
     }

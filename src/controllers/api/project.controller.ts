@@ -4,7 +4,7 @@ import {
   ProjectIdPathParamSchema,
   ProjectSchema,
 } from "@schemas/project.schema";
-import { UserIdQueryParam, UserIdQueryParamSchema } from "@schemas/user.schema";
+import { UserLocals } from "@middlewares/auth";
 import { ProjectService } from "@services/project.service";
 import { NextFunction, Response, Request } from "express";
 import { inject, injectable } from "tsyringe";
@@ -20,12 +20,16 @@ export class ProjectController {
 
   async createProject(
     request: Request<undefined, undefined, ProjectDTO>,
-    response: Response<ProjectCreationResponse>,
+    response: Response<ProjectCreationResponse, UserLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { userId, projectName, boardType } = await ProjectSchema.parseAsync(request.body);
-      const project = await this._project.createProject(userId, projectName, boardType);
+      const { projectName, boardType } = await ProjectSchema.parseAsync(request.body);
+      const project = await this._project.createProject(
+        response.locals.user.getPublicId(),
+        projectName,
+        boardType,
+      );
       response.status(StatusCodes.CREATED).json({
         project: {
           publicId: project.public_id!,
@@ -44,13 +48,12 @@ export class ProjectController {
   }
 
   async getProjects(
-    request: Request<undefined, undefined, undefined, UserIdQueryParam>,
-    response: Response<ProjectListResponse>,
+    _: Request,
+    response: Response<ProjectListResponse, UserLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { userId } = await UserIdQueryParamSchema.parseAsync(request.query);
-      const projects = await this._project.getAllProjects(userId);
+      const projects = await this._project.getAllProjects(response.locals.user.getPublicId());
       response.status(StatusCodes.OK).json({
         projects: projects,
         status: {
@@ -65,12 +68,12 @@ export class ProjectController {
 
   async removeProject(
     request: Request<ProjectIdPathParam>,
-    response: Response<ProjectDeletedResponse>,
+    response: Response<ProjectDeletedResponse, UserLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
       const param = await ProjectIdPathParamSchema.parseAsync(request.params);
-      await this._project.softDeleteProject(param.projectId);
+      await this._project.softDeleteProject(param.projectId, response.locals.user);
       response.status(StatusCodes.ACCEPTED).json({
         message: "Project has been deleted successfully!",
         status: {
@@ -85,12 +88,12 @@ export class ProjectController {
 
   async restoreProject(
     request: Request<ProjectIdPathParam>,
-    response: Response<ProjectDeletedResponse>,
+    response: Response<ProjectDeletedResponse, UserLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
       const param = await ProjectIdPathParamSchema.parseAsync(request.params);
-      await this._project.restoreProject(param.projectId);
+      await this._project.restoreProject(param.projectId, response.locals.user);
       response.status(StatusCodes.ACCEPTED).json({
         message: "Project has been accepted for restoration!",
         status: {

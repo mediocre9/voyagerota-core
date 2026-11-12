@@ -9,6 +9,7 @@ import { ArtifactInspectionQueueService } from "@services/artifact.queue.service
 import { DeviceStatusRegistryService } from "@services/device.registry.service";
 import { DeviceUpdateRegistryController } from "@controllers/api/device.controller";
 import { authenticateDevice } from "@middlewares/device.auth";
+import { loadOwnedProject, loadProjectRelease } from "@middlewares/auth";
 
 container.resolve(ArtifactInspectionQueueService);
 container.resolve(ArtifactInspectionTaskService);
@@ -20,6 +21,10 @@ const releaseController = container.resolve(ArtifactReleaseController);
 const storageController = container.resolve(ArtifactStorageController);
 const deviceUpdateController = container.resolve(DeviceUpdateRegistryController);
 export const releaseApiRouter = express.Router();
+
+// every dashboard route is scoped to a project (and release) owned by the signed in user....
+releaseApiRouter.param("projectId", loadOwnedProject);
+releaseApiRouter.param("releaseId", loadProjectRelease);
 
 releaseApiRouter
   .route("/:projectId/releases")

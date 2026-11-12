@@ -36,7 +36,6 @@ export class ArtifactStorageController {
     }
   }
 
-  /** device downloads: only staging/production releases with processed artifacts.... */
   async streamDownload(
     request: Request<ReleaseArtifactIdPathParams>,
     response: Response<unknown, DeviceLocals>,
@@ -45,7 +44,6 @@ export class ArtifactStorageController {
     await this._streamArtifact(request, response, next, { releasedOnly: true });
   }
 
-  /** dashboard downloads: any artifact of the caller's project, drafts included.... */
   async streamProjectDownload(
     request: Request<ReleaseArtifactIdPathParams>,
     response: Response<unknown, DeviceLocals>,
