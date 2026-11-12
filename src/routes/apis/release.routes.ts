@@ -6,20 +6,15 @@ import { ArtifactStorageService, upload } from "@services/artifact.storage.servi
 import { ArtifactInspectionQueue } from "@queues/artifact.queue";
 import { ArtifactInspectionTaskService } from "@services/artifact.task.service";
 import { ArtifactInspectionQueueService } from "@services/artifact.queue.service";
-import { DeviceStatusRegistryService } from "@services/device.registry.service";
-import { DeviceUpdateRegistryController } from "@controllers/api/device.controller";
-import { authenticateDevice } from "@middlewares/device.auth";
 import { loadOwnedProject, loadProjectRelease } from "@middlewares/auth";
 
 container.resolve(ArtifactInspectionQueueService);
 container.resolve(ArtifactInspectionTaskService);
 container.resolve(ArtifactInspectionQueue);
 container.resolve(ArtifactStorageService);
-container.resolve(DeviceStatusRegistryService);
 
 const releaseController = container.resolve(ArtifactReleaseController);
 const storageController = container.resolve(ArtifactStorageController);
-const deviceUpdateController = container.resolve(DeviceUpdateRegistryController);
 export const releaseApiRouter = express.Router();
 
 // every dashboard route is scoped to a project (and release) owned by the signed in user....
@@ -51,25 +46,3 @@ releaseApiRouter
 releaseApiRouter
   .route("/:projectId/releases/:releaseId/artifacts/:artifactId")
   .delete(storageController.deleteBlob.bind(storageController));
-
-// for end device clients....
-export const deviceReleaseApiRouter = express.Router();
-
-// every device route is authenticated and scoped to the caller's project....
-deviceReleaseApiRouter.use(authenticateDevice);
-
-deviceReleaseApiRouter
-  .route("/:releaseId/artifacts/:artifactId/download")
-  .get(storageController.streamDownload.bind(storageController));
-
-deviceReleaseApiRouter
-  .route("/latest")
-  .get(releaseController.getLatestRelease.bind(releaseController));
-
-deviceReleaseApiRouter
-  .route("/:releaseId/devices/status")
-  .put(deviceUpdateController.update.bind(deviceUpdateController));
-
-deviceReleaseApiRouter
-  .route("/:releaseId/devices/:macAddress/status")
-  .get(deviceUpdateController.checkStatus.bind(deviceUpdateController));
