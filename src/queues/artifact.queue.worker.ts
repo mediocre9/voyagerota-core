@@ -6,12 +6,10 @@ import { ArtifactBuildStatus } from "@models/artifact.model";
 import { StorageManager } from "@services/storage.manager";
 import { Logger } from "@utils/logger";
 import { computeElapsedTimeAsync } from "@utils/performance";
-import { Worker as ArtifactInspectionWorker, Job } from "bullmq";
+import { Worker as ArtifactInspectionWorker, Job, UnrecoverableError } from "bullmq";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as ArtifactQueue from "./artifact.queue";
-import { ApiError } from "@utils/error";
-import { StatusCodes } from "http-status-codes";
 
 const ___VYGR_STAGING_MARKER___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
 const ___VYGR_PRODUCTION_MARKER___ = "$2y$10$DX0bqDwfQtWJkBPgiXHVqOcbjOoX5i9cRHxSTgK3xgjTHpy5EGNbO";
@@ -23,10 +21,41 @@ const token = new Map<ArtifactBuildStatus, string>([
 
 type VersionMatchStatus = "matched" | "not-matched";
 
+// VoyagerOTAClient (6.1.0+) embeds "VYGR_FW_VERSION:<CURRENT_FIRMWARE_VERSION>;" in the binary....
+const ___VYGR_VERSION_MARKER___ = /VYGR_FW_VERSION:([0-9A-Za-z.+-]{1,32});/;
+
 type BuildInspectionResult = {
   buildStatus: ArtifactBuildStatus;
   versionMatchStatus: VersionMatchStatus;
+  releaseVersion: string;
+  binaryVersion: string | null;
 };
+
+function _escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// exact version from the SDK marker, otherwise fall back to looking for the version text
+// with boundaries so 1.0.1 doesn't match inside 11.0.1 or 1.0.10....
+function _matchBinaryVersion(
+  contents: string,
+  releaseVersion: string,
+): { versionMatchStatus: VersionMatchStatus; binaryVersion: string | null } {
+  const marker = ___VYGR_VERSION_MARKER___.exec(contents);
+  if (marker) {
+    const binaryVersion = marker[1];
+    return {
+      versionMatchStatus: binaryVersion === releaseVersion ? "matched" : "not-matched",
+      binaryVersion,
+    };
+  }
+
+  const pattern = new RegExp(`(?<![0-9.])${_escapeRegExp(releaseVersion)}(?![0-9]|\\.[0-9])`);
+  return {
+    versionMatchStatus: pattern.test(contents) ? "matched" : "not-matched",
+    binaryVersion: null,
+  };
+}
 
 async function _inspectBinaryFile(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
@@ -43,22 +72,25 @@ async function _inspectBinaryFile(
 
   const release = await ReleaseDAL.findReleaseByPublicId(job.data.releaseId);
   if (!release) {
-    throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
+    // the release was deleted while queued, retrying can't fix that....
+    throw new UnrecoverableError("Release not found!");
   }
 
-  const versionStatus: VersionMatchStatus = contents.includes(release.getVersion())
-    ? "matched"
-    : "not-matched";
+  const releaseVersion = release.getVersion();
+  const { versionMatchStatus, binaryVersion } = _matchBinaryVersion(contents, releaseVersion);
 
   return {
     buildStatus: status,
-    versionMatchStatus: versionStatus,
+    versionMatchStatus: versionMatchStatus,
+    releaseVersion: releaseVersion,
+    binaryVersion: binaryVersion,
   };
 }
 
 function _prepareBuildMessages(
   buildMessage: ArtifactBuildStatus,
   versionMessage: VersionMatchStatus,
+  versions: { releaseVersion: string; binaryVersion: string | null },
 ): { buildMessage: string; versionMessage: string } {
   const buildMessages: Record<ArtifactBuildStatus, string> = {
     "production-build": "Passed: Production channel build found!",
@@ -68,7 +100,9 @@ function _prepareBuildMessages(
   };
 
   const versionMessages: Record<VersionMatchStatus, string> = {
-    "not-matched": "Failed: Binary version does not match with release version!",
+    "not-matched": versions.binaryVersion
+      ? `Failed: Binary is v${versions.binaryVersion} but the release is v${versions.releaseVersion}!`
+      : `Failed: Binary version does not match with release version v${versions.releaseVersion}!`,
     matched: "Passed: Release and binary version correct!",
   };
 
@@ -118,7 +152,8 @@ async function _demoteReleaseToDraftState(
 async function _fileProcessor(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
 ): Promise<ArtifactQueue.TaskArtifactOutputData> {
-  const { buildStatus, versionMatchStatus } = await _inspectBinaryFile(job);
+  const { buildStatus, versionMatchStatus, releaseVersion, binaryVersion } =
+    await _inspectBinaryFile(job);
 
   const isBuildCorrect = buildStatus === "production-build" && versionMatchStatus === "matched";
   const elapsedTime = await computeElapsedTimeAsync(async () => {
@@ -129,19 +164,33 @@ async function _fileProcessor(
     }
   });
 
-  const { buildMessage, versionMessage } = _prepareBuildMessages(buildStatus, versionMatchStatus);
-  const result = {
+  const { buildMessage, versionMessage } = _prepareBuildMessages(buildStatus, versionMatchStatus, {
+    releaseVersion,
+    binaryVersion,
+  });
+  const isBuildPassed = buildStatus === "production-build";
+  const result: ArtifactQueue.TaskArtifactOutputData = {
     artifactId: job.data.artifactId,
     artifactStatus: isBuildCorrect ? "accepted" : "rejected",
     buildStatus: buildStatus,
+    versionMatchStatus: versionMatchStatus,
+    releaseVersion: releaseVersion,
+    binaryVersion: binaryVersion,
     matchResults: {
       buildStatusMessage: buildMessage,
       versionMatchMessage: versionMessage,
     },
+    // kept for clients reading the earlier result shape....
+    detectedBinary: buildStatus,
+    message: !isBuildPassed
+      ? buildMessage
+      : versionMatchStatus === "not-matched"
+        ? versionMessage
+        : buildMessage,
     elapsedTime: elapsedTime / 1000, // in seconds......
   };
 
-  return result as ArtifactQueue.TaskArtifactOutputData;
+  return result;
 }
 
 const worker = new ArtifactInspectionWorker(ArtifactQueue.ARTIFACT_QUEUE_NAME, _fileProcessor, {
