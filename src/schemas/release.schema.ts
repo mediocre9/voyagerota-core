@@ -57,6 +57,14 @@ export const ReleaseChannelQueryParamSchema = z.object({
   }),
 });
 
+export const ReleaseDownloadHeaderSchema = z.object({
+  apiKey: z.string("x-api-key header is required!").nonempty("x-api-key header is empty!").trim(),
+  projectId: z
+    .string("x-project-id header is required!")
+    .nonempty("x-project-id header is empty!")
+    .trim(),
+});
+
 export type ReleaseDTO = z.infer<typeof ReleaseSchema>;
 export type ReleaseArtifactIdPathParams = z.infer<typeof ReleaseArtifactIdPathParamsSchema>;
 export type ReleaseIdPathParam = z.infer<typeof ReleaseIdPathParamSchema>;
@@ -64,3 +72,4 @@ export type ReleaseIdDTO = z.infer<typeof ReleaseIdSchema>;
 export type ReleaseIdQueryParam = z.infer<typeof ReleaseIdQueryParamSchema>;
 export type ReleaseBaseQueryParam = z.infer<typeof ReleaseBaseQueryParamSchema>;
 export type ReleaseChannelQueryParam = z.infer<typeof ReleaseChannelQueryParamSchema>;
+export type ReleaseDownloadHeader = z.infer<typeof ReleaseDownloadHeaderSchema>;
