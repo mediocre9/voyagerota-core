@@ -15,8 +15,33 @@ Artifact.belongsTo(Release, { foreignKey: "release_id_fk" });
 Device.belongsTo(Release, { foreignKey: "release_id_fk" });
 Release.hasMany(Device, { foreignKey: "release_id_fk" });
 
+// db.sync() only creates missing tables, so add columns that were introduced after a table
+// was created. additive only: never drops, renames or alters existing columns....
+async function addMissingColumns(): Promise<void> {
+  const queryInterface = db.getQueryInterface();
+  for (const model of Object.values(db.models)) {
+    const tableName = model.getTableName();
+    const table = typeof tableName === "string" ? tableName : tableName.tableName;
+    const existing = await queryInterface.describeTable(table);
+    for (const [name, attribute] of Object.entries(model.getAttributes())) {
+      const column = attribute.field ?? name;
+      if (column in existing) continue;
+      const { type, allowNull, defaultValue } = attribute;
+      // a NOT NULL column without a default can't be added to a table that already has rows....
+      const safeAllowNull = allowNull === false && defaultValue === undefined ? true : allowNull;
+      await queryInterface.addColumn(table, column, {
+        type,
+        allowNull: safeAllowNull,
+        defaultValue: typeof defaultValue === "function" ? undefined : defaultValue,
+      });
+      Logger.warn(`Added missing column ${table}.${column}`);
+    }
+  }
+}
+
 try {
   await db.sync();
+  await addMissingColumns();
   Logger.info("Models Synced!");
 } catch (error) {
   if (typeof error === "string") {
