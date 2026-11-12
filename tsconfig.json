@@ -28,7 +28,8 @@
       "@cron/*": ["./src/cron/*"]
     },
     "noImplicitAny": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "skipLibCheck": true
   },
   "include": ["src", "env.d.ts", "sandbox"],
   "exclude": ["node_modules", "dist", "__tests__"]

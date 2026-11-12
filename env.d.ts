@@ -28,5 +28,8 @@ declare namespace NodeJS {
     GOOGLE_CLIENT_SECRET?: string;
     GOOGLE_REDIRECT_URI_DEV?: string;
     GOOGLE_REDIRECT_URI_PROD?: string;
+
+    CLERK_SECRET_KEY?: string;
+    CLERK_PUBLISHABLE_KEY?: string;
   }
 }

@@ -2,7 +2,6 @@ import z from "zod";
 
 export const ProjectSchema = z.object(
   {
-    userId: z.string("userId is required!").nonempty("userId field is empty!").trim(),
     projectName: z
       .string("projectName is required!")
       .nonempty("projectName field is empty!")
@@ -11,7 +10,7 @@ export const ProjectSchema = z.object(
       error: "boardType field is required either with ESP32 or ESP8266!",
     }),
   },
-  { error: "userId, projectName and boardType [ESP32 or ESP8266] is required!" }
+  { error: "projectName and boardType [ESP32 or ESP8266] is required!" },
 );
 
 export const ProjectIdQueryParamSchema = z.object({

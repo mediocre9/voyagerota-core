@@ -5,6 +5,7 @@ import * as ReleaseDAL from "@dal/release.dal";
 import * as ArtifactDAL from "@dal/artifact.dal";
 import * as OutBoxDAL from "@dal/outbox.dal";
 import { Project } from "@models/project.model";
+import { User } from "@models/user.model";
 import { ApiError } from "@utils/error";
 import { StatusCodes } from "http-status-codes";
 import { injectable } from "tsyringe";
@@ -74,10 +75,10 @@ export class ProjectService {
     return project;
   }
 
-  public async softDeleteProject(projectId: string): Promise<void> {
+  public async softDeleteProject(projectId: string, owner: User): Promise<void> {
     const project = await ProjectDAL.findProjectByPublicId(projectId);
 
-    if (!project) {
+    if (!project || project.getUserForeignKey() !== owner.getId()) {
       throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
     }
 
@@ -104,10 +105,10 @@ export class ProjectService {
     }
   }
 
-  public async restoreProject(projectId: string): Promise<void> {
+  public async restoreProject(projectId: string, owner: User): Promise<void> {
     const project = await ProjectDAL.findSoftDeletedProjectById(projectId);
 
-    if (!project) {
+    if (!project || project.getUserForeignKey() !== owner.getId()) {
       throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
     }
 

@@ -20,6 +20,7 @@
   "author": "Mediocre9",
   "license": "MIT",
   "dependencies": {
+    "@clerk/express": "^2.1.88",
     "@getbrevo/brevo": "^6.0.3",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",

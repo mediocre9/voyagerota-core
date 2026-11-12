@@ -15,7 +15,9 @@ import { authWebRouter } from "@routes/web/auth.routes";
 import { projectApiRouter } from "@routes/apis/project.routes";
 import { deviceReleaseApiRouter, releaseApiRouter } from "@routes/apis/release.routes";
 import { taskApiRouter } from "@routes/apis/artifact.task.routes";
-import { isAuthenticated } from "@middlewares/auth";
+import { isAuthenticated, requireUser } from "@middlewares/auth";
+import { clerkMiddleware } from "@clerk/express";
+import { isClerkEnabled } from "@config/clerk.config";
 import morgan from "morgan";
 import { Logger } from "@utils/logger";
 import helmet from "helmet";
@@ -71,6 +73,13 @@ app.use(express.static(path.join(import.meta.dirname, "..", "public")));
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+// clerk only verifies bearer tokens / cookies here, routes decide what is protected....
+if (isClerkEnabled()) {
+  app.use(clerkMiddleware());
+} else {
+  Logger.warn("Clerk is not configured. SPA authentication is disabled.");
+}
 
 const { credentials: googleOAuthCredentials, missing: missingGoogleOAuthConfig } =
   resolveGoogleOAuthConfig();
@@ -149,9 +158,9 @@ app.use("/auth", authWebRouter);
 app.use("/dashboard", isAuthenticated, projectWebRouter);
 app.use("/dashboard/projects", isAuthenticated, releaseWebRouter);
 
-app.use("/api/v1/workspace", isAuthenticated, projectApiRouter);
-app.use("/api/v1/workspace/projects", isAuthenticated, releaseApiRouter);
-app.use("/api/v1/tasks", isAuthenticated, taskApiRouter);
+app.use("/api/v1/workspace", requireUser, projectApiRouter);
+app.use("/api/v1/workspace/projects", requireUser, releaseApiRouter);
+app.use("/api/v1/tasks", requireUser, taskApiRouter);
 
 app.use("/internal/api/v1/releases", deviceReleaseApiRouter);
 
