@@ -18,10 +18,15 @@ export interface TaskArtifactOutputData {
   artifactId: string;
   artifactStatus: "accepted" | "rejected";
   buildStatus: ArtifactBuildStatus;
+  versionMatchStatus: "matched" | "not-matched";
+  releaseVersion: string;
+  binaryVersion: string | null;
   matchResults: {
     buildStatusMessage: string;
     versionMatchMessage: string;
   };
+  detectedBinary: ArtifactBuildStatus;
+  message: string;
   elapsedTime: number;
 }
 
