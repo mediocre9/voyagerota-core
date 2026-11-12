@@ -46,3 +46,7 @@ releaseApiRouter
 releaseApiRouter
   .route("/:projectId/releases/:releaseId/artifacts/:artifactId")
   .delete(storageController.deleteBlob.bind(storageController));
+
+releaseApiRouter
+  .route("/:projectId/releases/:releaseId/artifacts/:artifactId/download")
+  .get(storageController.streamProjectDownload.bind(storageController));
