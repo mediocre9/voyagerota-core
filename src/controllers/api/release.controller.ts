@@ -1,4 +1,3 @@
-import { EnvConfig } from "@config/config";
 import { ProjectIdPathParam, ProjectIdPathParamSchema } from "@schemas/project.schema";
 import {
   ReleaseBaseQueryParam,
@@ -140,7 +139,10 @@ export class ArtifactReleaseController {
       const query = await ReleaseChannelQueryParamSchema.parseAsync(request.query);
       const release = await this._release.getLatestRelease(query, response.locals.project);
 
-      const downloadURL = `${EnvConfig.BASE_URL}${request.baseUrl}/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
+      // same origin the device used to reach us, so the link is always reachable for it
+      // (LAN ip, domain behind nginx...), instead of a configured BASE_URL like localhost....
+      const origin = `${request.protocol}://${request.get("host")}`;
+      const downloadURL = `${origin}${request.baseUrl}/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
       const { createdAt: _, ...publicRelease } = release;
       response.status(StatusCodes.OK).json({
         release: {
