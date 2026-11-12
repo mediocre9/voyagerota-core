@@ -33,7 +33,7 @@ export async function resolveClerkUser(clerkUserId: string): Promise<User> {
   const user = await UserDAL.findOrCreateUserByEmail({
     email: primaryEmail.emailAddress,
     username: username,
-    pictureUrl: clerkUser.imageUrl,
+    pictureUrl: clerkUser.imageUrl || undefined,
   });
 
   clerkUserCache.set(clerkUserId, user.getPublicId());

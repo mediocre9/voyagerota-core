@@ -6,7 +6,8 @@ import { EnvConfig, isDevEnvironment } from "@config/config";
 import { requireUser } from "@middlewares/auth";
 import { taskApiRouter } from "@routes/apis/artifact.task.routes";
 import { projectApiRouter } from "@routes/apis/project.routes";
-import { deviceReleaseApiRouter, releaseApiRouter } from "@routes/apis/release.routes";
+import { releaseApiRouter } from "@routes/apis/release.routes";
+import { deviceApiRouter, projectDeviceApiRouter } from "@routes/apis/device.routes";
 import { ApiError } from "@utils/error";
 import { Logger } from "@utils/logger";
 import cors from "cors";
@@ -47,10 +48,11 @@ app.get("/health", (_: Request, response: Response) => {
 // dashboard apis for voyagerota-web (clerk)....
 app.use("/api/v1/workspace", requireUser, projectApiRouter);
 app.use("/api/v1/workspace/projects", requireUser, releaseApiRouter);
+app.use("/api/v1/workspace/projects", requireUser, projectDeviceApiRouter);
 app.use("/api/v1/tasks", requireUser, taskApiRouter);
 
-// device apis for VoyagerOTAClient (project id + api key)....
-app.use("/internal/api/v1/releases", deviceReleaseApiRouter);
+// device apis for VoyagerOTAClient: project key to register, device token for everything else....
+app.use("/internal/api/v2", deviceApiRouter);
 
 app.use((_: Request, response: Response) => {
   response.status(StatusCodes.NOT_FOUND).json({

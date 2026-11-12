@@ -132,7 +132,7 @@ export class ArtifactReleaseController {
   }
 
   async getLatestRelease(
-    request: Request<undefined, undefined, undefined, ReleaseChannelQueryParam>,
+    request: Request<Record<string, string>, unknown, unknown, ReleaseChannelQueryParam>,
     response: Response<unknown, DeviceLocals>,
     next: NextFunction,
   ): Promise<void> {
@@ -140,7 +140,7 @@ export class ArtifactReleaseController {
       const query = await ReleaseChannelQueryParamSchema.parseAsync(request.query);
       const release = await this._release.getLatestRelease(query, response.locals.project);
 
-      const downloadURL = `${EnvConfig.BASE_URL}/internal/api/v1/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
+      const downloadURL = `${EnvConfig.BASE_URL}${request.baseUrl}/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
       const { createdAt: _, ...publicRelease } = release;
       response.status(StatusCodes.OK).json({
         release: {

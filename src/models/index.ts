@@ -4,7 +4,8 @@ import { Project } from "./project.model";
 import { Release } from "./release.model";
 import { Logger } from "@utils/logger";
 import { Artifact } from "./artifact.model";
-import { Device } from "./device.model";
+import { ProjectDevice } from "./project.device.model";
+import { DeviceUpdateReport } from "./device.report.model";
 
 Project.belongsTo(User, { foreignKey: "user_id_fk" });
 User.hasMany(Project, { foreignKey: "user_id_fk" });
@@ -12,8 +13,11 @@ Release.belongsTo(Project, { foreignKey: "project_id_fk" });
 Project.hasMany(Release, { foreignKey: "project_id_fk" });
 Release.hasMany(Artifact, { foreignKey: "release_id_fk" });
 Artifact.belongsTo(Release, { foreignKey: "release_id_fk" });
-Device.belongsTo(Release, { foreignKey: "release_id_fk" });
-Release.hasMany(Device, { foreignKey: "release_id_fk" });
+ProjectDevice.belongsTo(Project, { foreignKey: "project_id_fk" });
+Project.hasMany(ProjectDevice, { foreignKey: "project_id_fk" });
+DeviceUpdateReport.belongsTo(ProjectDevice, { foreignKey: "device_id_fk" });
+ProjectDevice.hasMany(DeviceUpdateReport, { foreignKey: "device_id_fk" });
+DeviceUpdateReport.belongsTo(Release, { foreignKey: "release_id_fk" });
 
 // db.sync() only creates missing tables, so add columns that were introduced after a table
 // was created. additive only: never drops, renames or alters existing columns....
