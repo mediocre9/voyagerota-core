@@ -220,3 +220,11 @@ export async function updateProjectSuspendStatus(
     },
   );
 }
+
+export async function updateRolloutSettings(
+  projectId: number,
+  settings: { failure_alert_count?: number; failure_alert_percent?: number; auto_revoke?: boolean },
+): Promise<void> {
+  const values = Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined));
+  await Project.update(values, { where: { id: projectId } });
+}

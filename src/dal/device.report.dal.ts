@@ -1,25 +1,86 @@
 import { db } from "@config/db.config";
+import { DeviceReleaseOutcome } from "@models/device.outcome.model";
 import { DeviceReportStatus, DeviceUpdateReport } from "@models/device.report.model";
 import { Release } from "@models/release.model";
-import { QueryTypes } from "sequelize";
+import { Op, QueryTypes, Transaction } from "sequelize";
 
-export async function create(data: {
-  deviceId: number;
-  releaseId: number | null;
-  status: DeviceReportStatus;
-  fromVersion?: string | null;
-  toVersion: string;
-  errorCode?: number | null;
-  message?: string | null;
-}): Promise<DeviceUpdateReport> {
-  return await DeviceUpdateReport.create({
-    device_id_fk: data.deviceId,
-    release_id_fk: data.releaseId,
-    status: data.status,
-    from_version: data.fromVersion ?? null,
-    to_version: data.toVersion,
-    error_code: data.errorCode ?? null,
-    message: data.message ?? null,
+export async function create(
+  data: {
+    deviceId: number;
+    releaseId: number | null;
+    status: DeviceReportStatus;
+    fromVersion?: string | null;
+    toVersion: string;
+    errorCode?: number | null;
+    message?: string | null;
+  },
+  transaction?: Transaction,
+): Promise<DeviceUpdateReport> {
+  return await DeviceUpdateReport.create(
+    {
+      device_id_fk: data.deviceId,
+      release_id_fk: data.releaseId,
+      status: data.status,
+      from_version: data.fromVersion ?? null,
+      to_version: data.toVersion,
+      error_code: data.errorCode ?? null,
+      message: data.message ?? null,
+    },
+    { transaction },
+  );
+}
+
+// keep only the newest `keep` reports of a device....
+export async function pruneHistory(
+  deviceId: number,
+  keep: number,
+  transaction?: Transaction,
+): Promise<number> {
+  const newest = await DeviceUpdateReport.findAll({
+    where: { device_id_fk: deviceId },
+    attributes: ["id"],
+    order: [
+      ["created_at", "DESC"],
+      ["id", "DESC"],
+    ],
+    limit: keep,
+    transaction,
+  });
+  if (newest.length < keep) return 0;
+  return await DeviceUpdateReport.destroy({
+    where: { device_id_fk: deviceId, id: { [Op.notIn]: newest.map((r) => r.id) } },
+    transaction,
+  });
+}
+
+export async function upsertOutcome(
+  data: {
+    deviceId: number;
+    releaseId: number;
+    status: DeviceReportStatus;
+    errorCode?: number | null;
+    message?: string | null;
+  },
+  transaction?: Transaction,
+): Promise<void> {
+  await DeviceReleaseOutcome.upsert(
+    {
+      device_id_fk: data.deviceId,
+      release_id_fk: data.releaseId,
+      status: data.status,
+      error_code: data.errorCode ?? null,
+      message: data.message ?? null,
+    },
+    { transaction },
+  );
+}
+
+export async function findOutcomesByRelease(
+  releaseId: number,
+): Promise<readonly DeviceReleaseOutcome[]> {
+  return await DeviceReleaseOutcome.findAll({
+    where: { release_id_fk: releaseId },
+    order: [["updated_at", "DESC"]],
   });
 }
 
@@ -30,7 +91,10 @@ export async function findByDevice(
   return await DeviceUpdateReport.findAll({
     where: { device_id_fk: deviceId },
     include: [{ model: Release, attributes: ["public_id"], paranoid: false }],
-    order: [["created_at", "DESC"]],
+    order: [
+      ["created_at", "DESC"],
+      ["id", "DESC"],
+    ],
     limit,
   });
 }
@@ -43,7 +107,10 @@ export async function findLatestByDevices(
 
   const reports = await DeviceUpdateReport.findAll({
     where: { device_id_fk: deviceIds as number[] },
-    order: [["created_at", "DESC"]],
+    order: [
+      ["created_at", "DESC"],
+      ["id", "DESC"],
+    ],
   });
   for (const report of reports) {
     if (!latest.has(report.device_id_fk)) latest.set(report.device_id_fk, report);
@@ -53,20 +120,19 @@ export async function findLatestByDevices(
 
 export type RolloutRow = { release_id_fk: number; updated: number; failed: number };
 
-// per release: devices that reported success, and devices whose last report for it failed....
-export async function getRollout(projectId: number): Promise<readonly RolloutRow[]> {
+// per release: devices whose latest result for it is success / failed....
+export async function getRollout(
+  projectId: number,
+  releaseId?: number,
+): Promise<readonly RolloutRow[]> {
   return await db.query<RolloutRow>(
-    `SELECT r.release_id_fk,
-            COUNT(DISTINCT CASE WHEN r.status = 'success' THEN r.device_id_fk END) AS updated,
-            COUNT(DISTINCT CASE WHEN r.status = 'failed' AND NOT EXISTS (
-              SELECT 1 FROM device_update_reports s
-              WHERE s.device_id_fk = r.device_id_fk AND s.release_id_fk = r.release_id_fk
-                AND s.status = 'success'
-            ) THEN r.device_id_fk END) AS failed
-     FROM device_update_reports r
-     JOIN project_devices d ON d.id = r.device_id_fk
-     WHERE d.project_id_fk = :projectId AND r.release_id_fk IS NOT NULL
-     GROUP BY r.release_id_fk`,
-    { type: QueryTypes.SELECT, replacements: { projectId } },
+    `SELECT o.release_id_fk,
+            SUM(o.status = 'success') AS updated,
+            SUM(o.status = 'failed') AS failed
+     FROM device_release_outcomes o
+     JOIN project_devices d ON d.id = o.device_id_fk
+     WHERE d.project_id_fk = :projectId ${releaseId ? "AND o.release_id_fk = :releaseId" : ""}
+     GROUP BY o.release_id_fk`,
+    { type: QueryTypes.SELECT, replacements: { projectId, releaseId } },
   );
 }

@@ -52,8 +52,17 @@ export async function updateReleaseChannel(
   channel: ReleaseChannel,
   transaction?: Transaction,
 ): Promise<void> {
+  // remember when each stage was reached, for the release timeline....
+  const stamps =
+    channel === "staging"
+      ? { staged_at: new Date() }
+      : channel === "revoked"
+        ? { revoked_at: new Date() }
+        : channel === "draft"
+          ? { staged_at: null }
+          : {};
   await Release.update(
-    { channel: channel },
+    { channel: channel, ...stamps },
     {
       where: {
         public_id: releaseId,
@@ -269,4 +278,39 @@ export async function getReleaseById(releaseId: number): Promise<Nullable<Releas
     },
     order: [[sequelize.col("flatten_version"), "DESC"]],
   });
+}
+
+export async function countReleases(
+  projectId: number,
+  channel: ReleaseChannel | "all",
+): Promise<number> {
+  return await Release.count({
+    where: channel === "all" ? { project_id_fk: projectId } : { project_id_fk: projectId, channel },
+  });
+}
+
+export async function findReleaseWithArtifact(publicId: string): Promise<Nullable<Release>> {
+  return await Release.findOne({
+    where: { public_id: publicId },
+    include: [
+      {
+        model: Artifact,
+        attributes: ["public_id", "hash", "original_filename", "filename", "size"],
+      },
+    ],
+  });
+}
+
+export async function findProjectReleaseByVersion(
+  projectId: number,
+  version: string,
+): Promise<Nullable<Release>> {
+  return await Release.findOne({ where: { project_id_fk: projectId, version } });
+}
+
+export async function updateChangelog(releaseId: string, changelog: string): Promise<void> {
+  await Release.update(
+    { change_log: changelog },
+    { where: { public_id: releaseId }, individualHooks: true },
+  );
 }
