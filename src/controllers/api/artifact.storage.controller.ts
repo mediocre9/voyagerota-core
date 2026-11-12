@@ -9,7 +9,10 @@ import { ApiError } from "@utils/error";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import * as fs from "node:fs";
-import * as ArtifactDAL from "@dal/artifact.dal";
+import { DeviceLocals } from "@middlewares/device.auth";
+import { Logger } from "@utils/logger";
+import { once } from "node:events";
+import { pipeline } from "node:stream/promises";
 import { inject, injectable } from "tsyringe";
 
 @injectable()
@@ -33,37 +36,57 @@ export class ArtifactStorageController {
     }
   }
 
-  // TODO move DAL logic to service layer.....
+  /** device downloads: only staging/production releases with processed artifacts.... */
   async streamDownload(
     request: Request<ReleaseArtifactIdPathParams>,
-    response: Response,
+    response: Response<unknown, DeviceLocals>,
     next: NextFunction,
+  ): Promise<void> {
+    await this._streamArtifact(request, response, next, { releasedOnly: true });
+  }
+
+  /** dashboard downloads: any artifact of the caller's project, drafts included.... */
+  async streamProjectDownload(
+    request: Request<ReleaseArtifactIdPathParams>,
+    response: Response<unknown, DeviceLocals>,
+    next: NextFunction,
+  ): Promise<void> {
+    await this._streamArtifact(request, response, next, { releasedOnly: false });
+  }
+
+  private async _streamArtifact(
+    request: Request<ReleaseArtifactIdPathParams>,
+    response: Response<unknown, DeviceLocals>,
+    next: NextFunction,
+    options: { releasedOnly: boolean },
   ): Promise<void> {
     try {
       const params = await ReleaseArtifactIdPathParamsSchema.parseAsync(request.params);
+      const artifact = await this._storage.getDownloadableArtifact(
+        params,
+        response.locals.project,
+        options,
+      );
 
-      const apiKey = request.get("x-api-key");
-      const projectId = request.get("x-project-id");
+      // open the file before sending headers so a missing blob becomes a proper error response....
+      const fileStream = fs.createReadStream(artifact.path);
+      await once(fileStream, "open");
 
-      if (!apiKey) {
-        throw new ApiError("x-api-key header is required!", StatusCodes.BAD_REQUEST);
-      }
-
-      if (!projectId) {
-        throw new ApiError("x-project-id header is required!", StatusCodes.BAD_REQUEST);
-      }
-
-      const path = await this._storage.getBinaryFilePath(params);
-
-      const artifact = await ArtifactDAL.findArtifactById(params.artifactId);
-      if (!artifact) {
-        throw new ApiError("Artifact not found!", StatusCodes.BAD_REQUEST);
-      }
-      response.setHeader("content-length", artifact.size!);
+      response.setHeader("content-length", artifact.size);
       response.setHeader("content-type", "application/octet-stream");
       response.setHeader("cache-control", "no-cache");
-      fs.createReadStream(path).pipe(response);
+      await pipeline(fileStream, response);
     } catch (error) {
+      if (response.headersSent) {
+        // the device sees a truncated body and HTTPUpdate fails the size check....
+        Logger.error(`Artifact download interrupted: ${(error as Error).message}`);
+        response.destroy();
+        return;
+      }
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        next(new ApiError("Artifact file is missing from storage!", StatusCodes.NOT_FOUND));
+        return;
+      }
       next(error);
     }
   }

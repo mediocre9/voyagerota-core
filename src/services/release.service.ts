@@ -4,6 +4,7 @@ import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { Nullable, NullableOrUndefined } from "../types";
 import { ReleaseAttributesDTO } from "@models/release.model";
+import { Project } from "@models/project.model";
 import { ProjectIdPathParam } from "@schemas/project.schema";
 import {
   ReleaseArtifactIdPathParams,
@@ -168,12 +169,19 @@ export class ArtifactReleaseService {
     return releases.map((e) => e.toDTO());
   }
 
+  /**
+   * @description Returns the latest release of the given channel for an already
+   * authenticated project (see `authenticateDevice` middleware).
+   *
+   * Cache stampede guard: only the mutex holder fills the cache. Requests that lose
+   * the race read straight from the DB instead of returning nothing.
+   */
   public async getLatestRelease(
     queryParam: ReleaseChannelQueryParam,
-    projectId: string,
-    apiKey: string,
-  ): Promise<Nullable<ReleaseAttributesDTO>> {
+    project: Project,
+  ): Promise<ReleaseAttributesDTO> {
     const { channel } = queryParam;
+    const projectId = project.getPublicId();
     const { cacheKey, cachedData } = await this._cache.getChannelBased<ReleaseAttributesDTO>(
       projectId,
       channel,
@@ -186,32 +194,17 @@ export class ArtifactReleaseService {
 
     const isMutexLockAcquired = await this._cache.acquireMutexLock({ mutexKey: cacheKey });
     if (!isMutexLockAcquired) {
-      Logger.info("Mutex lock already acquired!");
-      return cachedData;
+      Logger.info(`Mutex lock for ${cacheKey} already held, reading from DB!`);
+      return await this._findLatestRelease(project, channel);
     }
 
     try {
       Logger.info("Mutex lock acquired!");
-      const project = await ProjectDAL.findProjectByPublicIdAndApiKey(projectId, apiKey);
-      if (!project) {
-        throw new ApiError("Project not found!", StatusCodes.NOT_FOUND);
-      }
-
-      const release = await ReleaseDAL.getLatestReleaseByProjectId(
-        project.getId(),
-        channel ?? "staging",
-      );
-
-      if (!release) {
-        throw new ApiError(
-          `Latest ${channel ?? "staging"} release not found!`,
-          StatusCodes.NOT_FOUND,
-        );
-      }
+      const release = await this._findLatestRelease(project, channel);
 
       const { isCached, cacheKey: key } = await this._cache.addChannelBased(
         projectId,
-        release.toDTO(),
+        release,
         channel,
       );
 
@@ -219,14 +212,22 @@ export class ArtifactReleaseService {
         Logger.info(`Release ${key} added to cache!`);
       }
 
-      return release.toDTO();
-    } catch (error) {
-      Logger.error((error as Error).message);
-      throw error;
+      return release;
     } finally {
       await this._cache.releaseMutexLock({ mutexKey: cacheKey });
       Logger.info("Mutex lock released!");
     }
+  }
+
+  private async _findLatestRelease(
+    project: Project,
+    channel: ReleaseChannelQueryParam["channel"],
+  ): Promise<ReleaseAttributesDTO> {
+    const release = await ReleaseDAL.getLatestReleaseByProjectId(project.getId(), channel);
+    if (!release) {
+      throw new ApiError(`Latest ${channel} release not found!`, StatusCodes.NOT_FOUND);
+    }
+    return release.toDTO();
   }
 
   public async revoke(pathParam: ReleaseArtifactIdPathParams): Promise<void> {
@@ -246,7 +247,9 @@ export class ArtifactReleaseService {
       throw new ApiError("Only production releases can be revoked only!", StatusCodes.BAD_REQUEST);
     }
 
-    const latestRelease = await ReleaseDAL.getLatestProductionRelease();
+    const latestRelease = await ReleaseDAL.getLatestProductionRelease(
+      release.getProjectForeignKeyId(),
+    );
     if (!latestRelease) {
       throw new ApiError("No production release found!", StatusCodes.NOT_FOUND);
     }

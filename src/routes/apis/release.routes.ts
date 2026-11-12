@@ -8,6 +8,7 @@ import { ArtifactInspectionTaskService } from "@services/artifact.task.service";
 import { ArtifactInspectionQueueService } from "@services/artifact.queue.service";
 import { DeviceStatusRegistryService } from "@services/device.registry.service";
 import { DeviceUpdateRegistryController } from "@controllers/api/device.controller";
+import { authenticateDevice } from "@middlewares/device.auth";
 
 container.resolve(ArtifactInspectionQueueService);
 container.resolve(ArtifactInspectionTaskService);
@@ -48,6 +49,10 @@ releaseApiRouter
 
 // for end device clients....
 export const deviceReleaseApiRouter = express.Router();
+
+// every device route is authenticated and scoped to the caller's project....
+deviceReleaseApiRouter.use(authenticateDevice);
+
 deviceReleaseApiRouter
   .route("/:releaseId/artifacts/:artifactId/download")
   .get(storageController.streamDownload.bind(storageController));

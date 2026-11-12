@@ -6,6 +6,7 @@ import { ArtifactStorageService, upload } from "@services/artifact.storage.servi
 import { ArtifactInspectionQueue } from "@queues/artifact.queue";
 import { ArtifactInspectionTaskService } from "@services/artifact.task.service";
 import { ArtifactInspectionQueueService } from "@services/artifact.queue.service";
+import { authenticateDevice } from "@middlewares/device.auth";
 
 container.resolve(ArtifactInspectionQueueService);
 container.resolve(ArtifactInspectionTaskService);
@@ -31,4 +32,4 @@ releaseWebRouter
 
 releaseWebRouter
   .route("/:releaseId/downloads/:artifactId")
-  .get(fileUploadController.streamDownload.bind(fileUploadController));
+  .get(authenticateDevice, fileUploadController.streamProjectDownload.bind(fileUploadController));
