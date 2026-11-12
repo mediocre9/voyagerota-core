@@ -1,4 +1,5 @@
 import { Release, ReleaseChannel } from "@models/release.model";
+import { DeviceReleaseOutcome } from "@models/device.outcome.model";
 import { Op } from "sequelize";
 import { Transaction } from "sequelize";
 import sequelize from "sequelize";
@@ -71,6 +72,21 @@ export async function updateReleaseChannel(
       transaction: transaction,
     },
   );
+
+  // back to draft means the binary is gone, so earlier test results belong to a different build....
+  if (channel === "draft") {
+    const release = await Release.findOne({
+      where: { public_id: releaseId },
+      attributes: ["id"],
+      transaction: transaction,
+    });
+    if (release) {
+      await DeviceReleaseOutcome.destroy({
+        where: { release_id_fk: release.id },
+        transaction: transaction,
+      });
+    }
+  }
 }
 
 export async function setProductionReleaseDate(
