@@ -10,7 +10,10 @@ import {
   ReleaseArtifactIdPathParamsSchema,
   ReleaseIdPathParamSchema,
   ReleaseIdPathParam,
+  PromotionGuardSchema,
 } from "@schemas/release.schema";
+import * as ReleaseDAL from "@dal/release.dal";
+import * as semver from "semver";
 import { ArtifactReleaseService } from "@services/release.service";
 import { DeviceLocals } from "@middlewares/device.auth";
 import { NextFunction, Request, Response } from "express";
@@ -56,7 +59,8 @@ export class ArtifactReleaseController {
   ): Promise<void> {
     try {
       const params = await ReleaseArtifactIdPathParamsSchema.parseAsync(request.params);
-      await this._release.promoteToProduction(params);
+      const guard = await PromotionGuardSchema.parseAsync(request.body ?? {});
+      await this._release.promoteToProduction(params, guard);
       response.status(StatusCodes.OK).json({
         message: `Release has been locked and promoted to production!`,
         status: {
@@ -118,8 +122,10 @@ export class ArtifactReleaseController {
       const param = await ProjectIdPathParamSchema.parseAsync(request.params);
       const query = await ReleaseBaseQueryParamSchema.parseAsync(request.query);
       const releases = await this._release.getAllReleases(param, query);
+      const total = await this._release.countReleases(param, query);
       response.status(StatusCodes.OK).json({
         releases: releases,
+        total: total,
         status: {
           reason: getReasonPhrase(StatusCodes.OK),
           code: StatusCodes.OK,
@@ -144,9 +150,22 @@ export class ArtifactReleaseController {
       const origin = `${request.protocol}://${request.get("host")}`;
       const downloadURL = `${origin}${request.baseUrl}/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
       const { createdAt: _, ...publicRelease } = release;
+
+      // a device running a revoked release is told to go back, even though it's an older version....
+      const deviceVersion = request.get("x-firmware-version")?.trim();
+      let rollback = false;
+      if (deviceVersion && semver.valid(deviceVersion) && deviceVersion !== release.version) {
+        const running = await ReleaseDAL.findProjectReleaseByVersion(
+          response.locals.project.getId(),
+          deviceVersion,
+        );
+        rollback = Boolean(running?.isRevoked()) && semver.lt(release.version, deviceVersion);
+      }
+
       response.status(StatusCodes.OK).json({
         release: {
           ...publicRelease,
+          rollback: rollback,
           changeLog: await marked.marked(release.changeLog),
           artifact: {
             ...release.artifact,

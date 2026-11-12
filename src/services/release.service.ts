@@ -3,7 +3,7 @@ import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { Nullable, NullableOrUndefined } from "../types";
-import { ReleaseAttributesDTO } from "@models/release.model";
+import { Release, ReleaseAttributesDTO } from "@models/release.model";
 import { Project } from "@models/project.model";
 import { ProjectIdPathParam } from "@schemas/project.schema";
 import {
@@ -18,6 +18,8 @@ import * as Utils from "@utils/utils";
 import { StatusCodes } from "http-status-codes";
 import { inject, injectable } from "tsyringe";
 import { ReleaseCacheService } from "./cache.service";
+import * as DeviceReportDAL from "@dal/device.report.dal";
+import { PromotionGuardDTO } from "@schemas/release.schema";
 
 /**
  * @description currently under development
@@ -169,6 +171,15 @@ export class ArtifactReleaseService {
     return releases.map((e) => e.toDTO());
   }
 
+  public async countReleases(
+    param: ProjectIdPathParam,
+    queryParam: ReleaseBaseQueryParam,
+  ): Promise<number> {
+    const project = await ProjectDAL.findProjectByPublicId(param.projectId);
+    if (!project) throw new ApiError("Project not found!", StatusCodes.NOT_FOUND);
+    return await ReleaseDAL.countReleases(project.getId(), queryParam.channel ?? "all");
+  }
+
   // only the mutex holder fills the cache, losers read straight from the DB....
   public async getLatestRelease(
     queryParam: ReleaseChannelQueryParam,
@@ -274,7 +285,10 @@ export class ArtifactReleaseService {
     }
   }
 
-  public async promoteToProduction(pathParam: ReleaseArtifactIdPathParams): Promise<void> {
+  public async promoteToProduction(
+    pathParam: ReleaseArtifactIdPathParams,
+    guard: PromotionGuardDTO = { confirmVersion: "" },
+  ): Promise<void> {
     const { releaseId, artifactId } = pathParam;
 
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
@@ -310,6 +324,23 @@ export class ArtifactReleaseService {
       throw new ApiError("Release already locked as a production channel!", StatusCodes.CONFLICT);
     }
 
+    // final challenge: the version has to be typed for every promotion....
+    if (guard.confirmVersion.trim().replace(/^v/i, "") !== release.getVersion()) {
+      throw new ApiError(
+        `Type v${release.getVersion()} to confirm the promotion.`,
+        StatusCodes.BAD_REQUEST,
+      );
+    }
+
+    // staging gate: a device has to confirm the release works, unless forced....
+    const [verified] = await DeviceReportDAL.getRollout(project.getId(), release.getId());
+    if (Number(verified?.updated ?? 0) < 1 && !guard.force) {
+      throw new ApiError(
+        "No staging device has confirmed this release yet. Test it on a staging device first, or promote anyway.",
+        StatusCodes.CONFLICT,
+      );
+    }
+
     if (release.isStaging()) {
       const transaction = await db.transaction();
       try {
@@ -339,5 +370,25 @@ export class ArtifactReleaseService {
         throw error;
       }
     }
+  }
+
+  // changelogs stay editable until the release is locked in production....
+  public async updateChangelog(release: Release, changelog: string): Promise<ReleaseAttributesDTO> {
+    if (release.isProduction() || release.isRevoked()) {
+      throw new ApiError(
+        `The changelog of a ${release.getChannel()} release is locked.`,
+        StatusCodes.CONFLICT,
+      );
+    }
+
+    await ReleaseDAL.updateChangelog(release.getPublicId(), changelog);
+
+    if (release.isStaging()) {
+      const project = await ProjectDAL.findProjectByInternalId(release.getProjectForeignKeyId());
+      if (project) await this._cache.invalidateCache(project.getPublicId(), "staging");
+    }
+
+    const updated = await ReleaseDAL.findReleaseWithArtifact(release.getPublicId());
+    return updated!.toDTO();
   }
 }

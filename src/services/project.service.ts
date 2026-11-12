@@ -9,6 +9,7 @@ import { User } from "@models/user.model";
 import { ApiError } from "@utils/error";
 import { StatusCodes } from "http-status-codes";
 import { injectable } from "tsyringe";
+import { RolloutSettings, rolloutSettings } from "./device.service";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
 
 export interface ProjectDTOFields {
@@ -18,6 +19,7 @@ export interface ProjectDTOFields {
   totalReleases: number;
   apiKey: string;
   status: string;
+  settings: RolloutSettings;
 }
 
 @injectable()
@@ -64,6 +66,7 @@ export class ProjectService {
         totalReleases: e.Releases?.length,
         status: e.Releases?.at(0)?.getChannel(),
         apiKey: e.getApiKey(),
+        settings: rolloutSettings(e),
       };
     }) as ProjectDTOFields[];
   }

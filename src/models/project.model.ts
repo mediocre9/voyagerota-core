@@ -18,6 +18,9 @@ export class Project extends Model<InferAttributes<Project>, InferCreationAttrib
   declare last_activity?: Date | null;
   declare updated_at?: Date | null;
   declare deleted_at?: Date | null;
+  declare failure_alert_count?: number;
+  declare failure_alert_percent?: number;
+  declare auto_revoke?: boolean;
 
   getPublicId() {
     return this.getDataValue("public_id")!;
@@ -115,6 +118,21 @@ Project.init(
       values: ["ESP32", "ESP8266"],
     },
     is_suspended: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    failure_alert_count: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      defaultValue: 3,
+    },
+    failure_alert_percent: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      defaultValue: 20,
+    },
+    auto_revoke: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: false,

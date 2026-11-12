@@ -26,7 +26,9 @@ export interface ReleaseAttributesDTO {
   changeLog: string;
   channel: ReleaseChannel;
   createdAt?: Date | null;
+  stagedAt?: Date | null;
   releasedAt?: Date | null;
+  revokedAt?: Date | null;
   artifact?: ArtifactDTO;
 }
 
@@ -41,6 +43,8 @@ export class Release extends Model<InferAttributes<Release>, InferCreationAttrib
   declare deleted_at: Date | null;
   declare created_at: Date | null;
   declare released_at: Date | null;
+  declare staged_at?: Date | null;
+  declare revoked_at?: Date | null;
   declare Artifacts?: Artifact[];
 
   getId() {
@@ -98,7 +102,9 @@ export class Release extends Model<InferAttributes<Release>, InferCreationAttrib
       version: this.getDataValue("version")!,
       changeLog: this.getDataValue("change_log")!,
       createdAt: this.getDataValue("created_at")!,
+      stagedAt: this.getDataValue("staged_at") ?? null,
       releasedAt: this.getDataValue("released_at") ?? null,
+      revokedAt: this.getDataValue("revoked_at") ?? null,
       artifact:
         this.Artifacts && this.Artifacts[0]
           ? {
@@ -159,6 +165,14 @@ Release.init(
       type: DataTypes.DATE,
     },
     released_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    staged_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    revoked_at: {
       type: DataTypes.DATE,
       allowNull: true,
     },

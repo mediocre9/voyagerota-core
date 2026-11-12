@@ -22,6 +22,7 @@ export type ArtifactTaskCreationResponse = {
 
 export type ReleaseListArtifactsResponse = {
   releases: readonly ReleaseAttributesDTO[];
+  total: number;
 } & StatusResponse;
 
 export type LatestReleaseArtificatResponse = {

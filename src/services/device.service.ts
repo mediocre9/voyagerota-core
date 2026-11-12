@@ -15,7 +15,10 @@ import { DeviceCreateDTO, DeviceRegisterDTO, DeviceReportDTOInput } from "@schem
 import { ApiError } from "@utils/error";
 import { Logger } from "@utils/logger";
 import { StatusCodes } from "http-status-codes";
-import { injectable } from "tsyringe";
+import { container, injectable } from "tsyringe";
+import { db } from "@config/db.config";
+import { Release } from "@models/release.model";
+import { ArtifactReleaseService } from "./release.service";
 
 export const DEVICE_TOKEN_PREFIX = "vdt_";
 const TOKEN_CACHE_TTL = 5 * 60; // seconds....
@@ -29,7 +32,56 @@ export type RegistrationResult =
 
 export type DeviceWithLastReport = ProjectDeviceDTO & { lastReport: DeviceReportDTO | null };
 
-export type ReleaseRollout = { updated: number; failed: number; running: number };
+export type ReleaseRollout = { updated: number; failed: number; running: number; alert: boolean };
+
+export const HISTORY_LIMIT = 10;
+
+export type RolloutSettings = {
+  failureAlertCount: number;
+  failureAlertPercent: number;
+  autoRevoke: boolean;
+};
+
+export function rolloutSettings(project: Project): RolloutSettings {
+  return {
+    failureAlertCount: project.failure_alert_count ?? 3,
+    failureAlertPercent: project.failure_alert_percent ?? 20,
+    autoRevoke: Boolean(project.auto_revoke),
+  };
+}
+
+// a release is flagged once its failures reach the project's count or percentage threshold....
+export function isOverFailureThreshold(
+  settings: RolloutSettings,
+  updated: number,
+  failed: number,
+): boolean {
+  if (failed === 0) return false;
+  if (failed >= settings.failureAlertCount) return true;
+  return (failed * 100) / (failed + updated) >= settings.failureAlertPercent;
+}
+
+export type ReleaseDeviceRow = {
+  device: ProjectDeviceDTO;
+  outcome: {
+    status: "success" | "failed";
+    errorCode: number | null;
+    message: string | null;
+    at: Date;
+  } | null;
+  runningThisRelease: boolean;
+};
+
+export type PromotionPreflight = {
+  staging: { updated: number; failed: number };
+  gatePassed: boolean;
+  productionDevices: number;
+  currentProduction: { version: string; size: number | null } | null;
+  versionJump: "major" | "minor" | "patch" | null;
+  size: number | null;
+  sizeChangePercent: number | null;
+  changelogEmpty: boolean;
+};
 
 function sha256(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -140,19 +192,42 @@ export class DeviceService {
       }
     }
 
-    await ReportDAL.create({
-      deviceId: device.id,
-      releaseId,
-      status: dto.status,
-      fromVersion: dto.fromVersion,
-      toVersion: dto.toVersion,
-      errorCode: dto.errorCode,
-      message: dto.message,
+    // report, history cap and the per release outcome are saved together....
+    await db.transaction(async (transaction) => {
+      await ReportDAL.create(
+        {
+          deviceId: device.id,
+          releaseId,
+          status: dto.status,
+          fromVersion: dto.fromVersion,
+          toVersion: dto.toVersion,
+          errorCode: dto.errorCode,
+          message: dto.message,
+        },
+        transaction,
+      );
+      await ReportDAL.pruneHistory(device.id, HISTORY_LIMIT, transaction);
+      if (releaseId) {
+        await ReportDAL.upsertOutcome(
+          {
+            deviceId: device.id,
+            releaseId,
+            status: dto.status,
+            errorCode: dto.errorCode,
+            message: dto.message,
+          },
+          transaction,
+        );
+      }
     });
 
     await DeviceDAL.touch(device.id, {
       firmwareVersion: dto.status === "success" ? dto.toVersion : dto.fromVersion,
     });
+
+    if (releaseId && dto.status === "failed") {
+      await this._guardProductionRelease(project, releaseId);
+    }
 
     Logger.info(
       `Device #${device.id} reported ${dto.status} for v${dto.toVersion}${dto.message ? `: ${dto.message}` : ""}`,
@@ -237,17 +312,110 @@ export class DeviceService {
       DeviceDAL.findAllByProject(project.getId(), "active"),
     ]);
 
+    const settings = rolloutSettings(project);
     const byRelease = new Map(rows.map((row) => [Number(row.release_id_fk), row]));
     const result: Record<string, ReleaseRollout> = {};
     for (const release of releases) {
       const row = byRelease.get(release.getId());
+      const updated = Number(row?.updated ?? 0);
+      const failed = Number(row?.failed ?? 0);
       result[release.getPublicId()] = {
-        updated: Number(row?.updated ?? 0),
-        failed: Number(row?.failed ?? 0),
+        updated,
+        failed,
         running: devices.filter((d) => d.firmware_version === release.getVersion()).length,
+        alert: release.isProduction() && isOverFailureThreshold(settings, updated, failed),
       };
     }
     return result;
+  }
+
+  // every active device with its result for this release....
+  public async releaseDevices(project: Project, release: Release): Promise<ReleaseDeviceRow[]> {
+    const [devices, outcomes] = await Promise.all([
+      DeviceDAL.findAllByProject(project.getId(), "active"),
+      ReportDAL.findOutcomesByRelease(release.getId()),
+    ]);
+    const byDevice = new Map(outcomes.map((o) => [o.device_id_fk, o]));
+    return devices
+      .map((device) => {
+        const outcome = byDevice.get(device.id);
+        return {
+          device: device.toDTO(),
+          outcome: outcome
+            ? {
+                status: outcome.status,
+                errorCode: outcome.error_code,
+                message: outcome.message,
+                at: outcome.updated_at,
+              }
+            : null,
+          runningThisRelease: device.firmware_version === release.getVersion(),
+        };
+      })
+      .sort((a, b) => Number(Boolean(b.outcome)) - Number(Boolean(a.outcome)));
+  }
+
+  public async preflight(project: Project, release: Release): Promise<PromotionPreflight> {
+    const [rows, devices, production, withArtifact] = await Promise.all([
+      ReportDAL.getRollout(project.getId(), release.getId()),
+      DeviceDAL.findAllByProject(project.getId(), "active"),
+      ReleaseDAL.getLatestReleaseByProjectId(project.getId(), "production"),
+      ReleaseDAL.findReleaseWithArtifact(release.getPublicId()),
+    ]);
+
+    const updated = Number(rows[0]?.updated ?? 0);
+    const failed = Number(rows[0]?.failed ?? 0);
+    const size = withArtifact?.Artifacts?.[0]?.size ?? null;
+    const currentSize = production?.Artifacts?.[0]?.size ?? null;
+    const currentVersion = production?.getVersion() ?? null;
+
+    let versionJump: PromotionPreflight["versionJump"] = null;
+    if (currentVersion) {
+      const [cMajor, cMinor] = currentVersion.split(".").map(Number);
+      const [nMajor, nMinor] = release.getVersion().split(".").map(Number);
+      versionJump = nMajor !== cMajor ? "major" : nMinor !== cMinor ? "minor" : "patch";
+    }
+
+    return {
+      staging: { updated, failed },
+      gatePassed: updated >= 1,
+      productionDevices: devices.filter((d) => d.channel !== "staging").length,
+      currentProduction: currentVersion ? { version: currentVersion, size: currentSize } : null,
+      versionJump,
+      size,
+      sizeChangePercent:
+        size && currentSize ? Math.round(((size - currentSize) * 100) / currentSize) : null,
+      changelogEmpty:
+        !release.getChangeLog()?.trim() || release.getChangeLog().trim() === "## What's New",
+    };
+  }
+
+  // after a failed report on the latest production release: auto revoke if the project wants it....
+  private async _guardProductionRelease(project: Project, releaseId: number): Promise<void> {
+    const settings = rolloutSettings(project);
+    if (!settings.autoRevoke) return;
+
+    const latest = await ReleaseDAL.getLatestProductionRelease(project.getId());
+    if (!latest || latest.getId() !== releaseId) return;
+
+    const [row] = await ReportDAL.getRollout(project.getId(), releaseId);
+    if (!isOverFailureThreshold(settings, Number(row?.updated ?? 0), Number(row?.failed ?? 0)))
+      return;
+
+    const withArtifact = await ReleaseDAL.findReleaseWithArtifact(latest.getPublicId());
+    const artifactId = withArtifact?.Artifacts?.[0]?.public_id;
+    if (!artifactId) return;
+
+    try {
+      await container
+        .resolve(ArtifactReleaseService)
+        .revoke({ releaseId: latest.getPublicId(), artifactId });
+      Logger.warn(
+        `Auto revoked v${latest.getVersion()} of project ${project.getPublicId()}: failure threshold reached`,
+      );
+    } catch (error) {
+      Logger.error(`Auto revoke failed: ${(error as Error).message}`);
+    }
   }
 
   private async _forgetToken(device: ProjectDevice): Promise<void> {
