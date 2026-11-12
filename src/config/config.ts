@@ -6,7 +6,6 @@ dotenv.config({ path: path.resolve(import.meta.dirname, "../../.env.development"
 export const EnvConfig = {
   BROKER_BASIC_AUTH_CREDENTIALS: process.env.BROKER_BASIC_AUTH_CREDENTIALS,
   PORT: parseInt(process.env.PORT),
-  SESSION_SECRET: process.env.SESSION_SECRET,
   BASE_URL: isDevEnvironment()
     ? process.env.BASE_URL.concat(":").concat(process.env.PORT.toString())
     : process.env.BASE_URL,

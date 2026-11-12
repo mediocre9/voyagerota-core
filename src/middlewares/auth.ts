@@ -14,37 +14,20 @@ export type UserLocals = { user: User };
 export type ProjectLocals = UserLocals & { project: Project };
 export type ReleaseLocals = ProjectLocals & { release: Release };
 
-// for the ejs pages (passport session only)....
-export function isAuthenticated(request: Request, response: Response, next: NextFunction) {
-  if (request.isUnauthenticated()) {
-    return response.redirect("/");
-  }
-  next();
-}
-
-// for json apis: accepts the passport session (ejs) or a clerk bearer token (spa)....
+// dashboard apis: the caller must be signed in with clerk....
 export async function requireUser(
   request: Request,
   response: Response<unknown, Partial<UserLocals>>,
   next: NextFunction,
 ): Promise<void> {
   try {
-    if (request.isAuthenticated() && request.user) {
-      response.locals.user = request.user as User;
-      next();
-      return;
+    const userId = isClerkEnabled() ? getAuth(request).userId : null;
+    if (!userId) {
+      throw new ApiError("Authentication required!", StatusCodes.UNAUTHORIZED);
     }
 
-    if (isClerkEnabled()) {
-      const { userId } = getAuth(request);
-      if (userId) {
-        response.locals.user = await resolveClerkUser(userId);
-        next();
-        return;
-      }
-    }
-
-    throw new ApiError("Authentication required!", StatusCodes.UNAUTHORIZED);
+    response.locals.user = await resolveClerkUser(userId);
+    next();
   } catch (error) {
     next(error);
   }
