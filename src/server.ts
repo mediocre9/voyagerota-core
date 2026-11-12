@@ -1,171 +1,65 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import "@models/index"; // please do not change the order of import paths otherwise the models wont be initialized....
-import { ApiError } from "@utils/error";
-import cors from "cors";
-import express, { NextFunction, Request, Response } from "express";
-import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import "reflect-metadata";
-import { projectWebRouter } from "@routes/web/project.routes";
-import { releaseWebRouter } from "@routes/web/release.routes";
-import { ZodError } from "zod";
-import session from "express-session";
-import { redis } from "@config/redis.connection.config";
-import path from "path";
-import { authWebRouter } from "@routes/web/auth.routes";
-import { projectApiRouter } from "@routes/apis/project.routes";
-import { deviceReleaseApiRouter, releaseApiRouter } from "@routes/apis/release.routes";
-import { taskApiRouter } from "@routes/apis/artifact.task.routes";
-import { isAuthenticated, requireUser } from "@middlewares/auth";
 import { clerkMiddleware } from "@clerk/express";
 import { isClerkEnabled } from "@config/clerk.config";
-import morgan from "morgan";
-import { Logger } from "@utils/logger";
-import helmet from "helmet";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import * as UserDAL from "@dal/user.dal";
 import { EnvConfig, isDevEnvironment } from "@config/config";
-import { resolveGoogleOAuthConfig } from "@config/oauth.config";
-import { RedisStore } from "connect-redis";
+import { requireUser } from "@middlewares/auth";
+import { taskApiRouter } from "@routes/apis/artifact.task.routes";
+import { projectApiRouter } from "@routes/apis/project.routes";
+import { deviceReleaseApiRouter, releaseApiRouter } from "@routes/apis/release.routes";
+import { ApiError } from "@utils/error";
+import { Logger } from "@utils/logger";
+import cors from "cors";
+import express, { NextFunction, Request, Response } from "express";
+import helmet from "helmet";
+import { getReasonPhrase, StatusCodes } from "http-status-codes";
+import morgan from "morgan";
+import { ZodError } from "zod";
+
+if (!isClerkEnabled()) {
+  const message = "Clerk is not configured. Set CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY.";
+  if (!isDevEnvironment()) {
+    // winston only writes uncaught exceptions to logs/exceptions.log, so say it on the console too....
+    Logger.error(message);
+    process.exit(1);
+  }
+  Logger.warn(`${message} Dashboard APIs will answer 401, device APIs keep working.`);
+}
 
 const app = express();
 
 app.set("trust proxy", 1);
 
+// auth is bearer tokens only (no cookies), so an open cors policy is safe here....
 app.use(cors());
-
-// todo: enable it later..
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-  }),
-);
-
-app.use(express.urlencoded({ extended: false }));
-
+app.use(helmet());
 app.use(express.json());
-
 app.use(morgan("combined"));
 
-const store = new RedisStore({
-  client: redis,
-  prefix: "vygr_sess:",
-});
-
-app.use(
-  session({
-    store: store,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      maxAge: 3600000 * 2, // 2 hours....
-      sameSite: "lax",
-    },
-    name: "VGR_SESS",
-    secret: EnvConfig.SESSION_SECRET,
-  }),
-);
-
-app.set("view engine", "ejs");
-app.set("views", path.join(import.meta.dirname, "views"));
-
-app.use(express.static(path.join(import.meta.dirname, "..", "public")));
-
-app.use(passport.initialize());
-app.use(passport.session());
-
-// clerk only verifies bearer tokens / cookies here, routes decide what is protected....
 if (isClerkEnabled()) {
   app.use(clerkMiddleware());
-} else {
-  Logger.warn("Clerk is not configured. SPA authentication is disabled.");
 }
 
-const { credentials: googleOAuthCredentials, missing: missingGoogleOAuthConfig } =
-  resolveGoogleOAuthConfig();
-
-if (googleOAuthCredentials) {
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: googleOAuthCredentials.clientID,
-        clientSecret: googleOAuthCredentials.clientSecret,
-        callbackURL: googleOAuthCredentials.callbackURL,
-      },
-      function (_, __, profile, callback) {
-        UserDAL.createOAuthUser({
-          email: profile.emails![0].value,
-          googleId: profile.id,
-          googleProfilePic: profile.photos![0].value,
-          username: profile.displayName,
-        })
-          .then(([user, _]) => {
-            callback(null, user.public_id);
-          })
-          .catch((error) => {
-            callback(error);
-          });
-      },
-    ),
-  );
-} else if (isDevEnvironment()) {
-  Logger.warn(
-    `Google OAuth is not configured. Missing: ${missingGoogleOAuthConfig.join(", ")}. OAuth login is disabled.`,
-  );
-} else {
-  throw new Error(
-    `Google OAuth is not configured. Missing: ${missingGoogleOAuthConfig.join(", ")}.`,
-  );
-}
-
-if (googleOAuthCredentials) {
-  app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
-
-  app.get(
-    "/auth/google/callback",
-    passport.authenticate("google", {
-      failureRedirect: "/",
-      successRedirect: "/dashboard",
-    }),
-  );
-} else {
-  const oauthUnavailable = (_: Request, response: Response) =>
-    response.status(StatusCodes.SERVICE_UNAVAILABLE).send("Google OAuth is not configured.");
-
-  app.get("/auth/google", oauthUnavailable);
-  app.get("/auth/google/callback", oauthUnavailable);
-}
-
-passport.serializeUser((userId, done) => {
-  done(null, userId);
+app.get("/health", (_: Request, response: Response) => {
+  response.status(StatusCodes.OK).json({ status: "ok" });
 });
 
-passport.deserializeUser((id: string, done) => {
-  UserDAL.findUserByPublicId(id)
-    .then((user) => {
-      done(null, user ?? false);
-    })
-    .catch((error) => {
-      done(error);
-    });
-});
-
-app.get("/", (_: Request, response: Response) => response.render("index"));
-app.get("/story", (_: Request, response: Response) => response.render("story"));
-app.get("/docs", (_: Request, response: Response) => response.render("docs"));
-
-app.use("/auth", authWebRouter);
-app.use("/dashboard", isAuthenticated, projectWebRouter);
-app.use("/dashboard/projects", isAuthenticated, releaseWebRouter);
-
+// dashboard apis for voyagerota-web (clerk)....
 app.use("/api/v1/workspace", requireUser, projectApiRouter);
 app.use("/api/v1/workspace/projects", requireUser, releaseApiRouter);
 app.use("/api/v1/tasks", requireUser, taskApiRouter);
 
+// device apis for VoyagerOTAClient (project id + api key)....
 app.use("/internal/api/v1/releases", deviceReleaseApiRouter);
 
-app.use((_: Request, response: Response, __: NextFunction) => {
-  response.status(StatusCodes.NOT_FOUND).render("404");
+app.use((_: Request, response: Response) => {
+  response.status(StatusCodes.NOT_FOUND).json({
+    message: "Route not found!",
+    status: {
+      reason: getReasonPhrase(StatusCodes.NOT_FOUND),
+      code: StatusCodes.NOT_FOUND,
+    },
+  });
 });
 
 app.use((error: Error, _: Request, response: Response, next: NextFunction) => {

@@ -32,7 +32,15 @@ Backend platform for managing over-the-air (OTA) firmware releases for embedded 
 ## Quickstart
 
 > [!NOTE]
-> Create a `.env.development` file in the project root before running the server.
+> Create a `.env.development` file in the project root before running the server (see `.env.example`).
+> VoyagerOTA core is API only. The dashboard lives in [voyagerota-web](https://github.com/mediocre9/voyagerota-web)
+> and signs users in with [Clerk](https://clerk.com), so set `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY`.
+
+| API | Auth | Consumer |
+| --- | --- | --- |
+| `/api/v1/workspace/*`, `/api/v1/tasks/*` | Clerk session token (`Authorization: Bearer`) | voyagerota-web |
+| `/internal/api/v1/releases/*` | `x-project-id` + `x-api-key` headers | VoyagerOTAClient devices |
+| `/health` | none | uptime checks |
 
 ```bash
 npm install

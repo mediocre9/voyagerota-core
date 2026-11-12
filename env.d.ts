@@ -1,7 +1,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
     PORT: string;
-    SESSION_SECRET: string;
     BASE_URL: string;
     ENVIRONMENT: string;
 
@@ -23,11 +22,6 @@ declare namespace NodeJS {
     BREVO_SMTP_SENDER_NAME: string;
     BREVO_SMTP_SENDER_EMAIL: string;
     BREVO_SMTP_RECEPIENT_DEV_EMAIL: string;
-
-    GOOGLE_CLIENT_ID?: string;
-    GOOGLE_CLIENT_SECRET?: string;
-    GOOGLE_REDIRECT_URI_DEV?: string;
-    GOOGLE_REDIRECT_URI_PROD?: string;
 
     CLERK_SECRET_KEY?: string;
     CLERK_PUBLISHABLE_KEY?: string;
