@@ -144,6 +144,14 @@ export class ArtifactReleaseService {
       try {
         await ReleaseDAL.deleteReleaseByPublicId(releaseId);
         Logger.info("Release successfully deleted");
+
+        // a deleted staging release must not keep being served from cache....
+        if (release.isStaging()) {
+          const project = await ProjectDAL.findProjectByInternalId(
+            release.getProjectForeignKeyId(),
+          );
+          if (project) await this._cache.invalidateCache(project.getPublicId(), "staging");
+        }
       } catch (error) {
         Logger.error(error as string);
         throw error;
