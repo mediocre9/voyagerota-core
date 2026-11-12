@@ -1,4 +1,5 @@
 import * as crypto from "node:crypto";
+import { isPlaceholderChangelog, stagingGate } from "@utils/staging.gate";
 import { redis } from "@config/redis.connection.config";
 import * as DeviceDAL from "@dal/project.device.dal";
 import * as ReportDAL from "@dal/device.report.dal";
@@ -75,6 +76,7 @@ export type ReleaseDeviceRow = {
 export type PromotionPreflight = {
   staging: { updated: number; failed: number };
   gatePassed: boolean;
+  gateReason: "untested" | "failing" | null;
   productionDevices: number;
   currentProduction: { version: string; size: number | null } | null;
   versionJump: "major" | "minor" | "patch" | null;
@@ -376,17 +378,18 @@ export class DeviceService {
       versionJump = nMajor !== cMajor ? "major" : nMinor !== cMinor ? "minor" : "patch";
     }
 
+    const gate = stagingGate(updated, failed);
     return {
       staging: { updated, failed },
-      gatePassed: updated >= 1,
+      gatePassed: gate.passed,
+      gateReason: gate.reason,
       productionDevices: devices.filter((d) => d.channel !== "staging").length,
       currentProduction: currentVersion ? { version: currentVersion, size: currentSize } : null,
       versionJump,
       size,
       sizeChangePercent:
         size && currentSize ? Math.round(((size - currentSize) * 100) / currentSize) : null,
-      changelogEmpty:
-        !release.getChangeLog()?.trim() || release.getChangeLog().trim() === "## What's New",
+      changelogEmpty: isPlaceholderChangelog(release.getChangeLog()),
     };
   }
 

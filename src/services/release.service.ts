@@ -1,4 +1,5 @@
 import { db } from "@config/db.config";
+import { stagingGate } from "@utils/staging.gate";
 import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
@@ -332,11 +333,14 @@ export class ArtifactReleaseService {
       );
     }
 
-    // staging gate: a device has to confirm the release works, unless forced....
+    // staging gate: a device has to confirm this build works and none may fail, unless forced....
     const [verified] = await DeviceReportDAL.getRollout(project.getId(), release.getId());
-    if (Number(verified?.updated ?? 0) < 1 && !guard.force) {
+    const gate = stagingGate(Number(verified?.updated ?? 0), Number(verified?.failed ?? 0));
+    if (!gate.passed && !guard.force) {
       throw new ApiError(
-        "No staging device has confirmed this release yet. Test it on a staging device first, or promote anyway.",
+        gate.reason === "failing"
+          ? "A staging device failed to install this release. Fix it, or promote anyway."
+          : "No staging device has confirmed this release yet. Test it on a staging device first, or promote anyway.",
         StatusCodes.CONFLICT,
       );
     }
