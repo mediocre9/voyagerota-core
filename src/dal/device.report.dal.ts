@@ -107,6 +107,7 @@ export async function findLatestByDevices(
 
   const reports = await DeviceUpdateReport.findAll({
     where: { device_id_fk: deviceIds as number[] },
+    include: [{ model: Release, attributes: ["public_id"], paranoid: false }],
     order: [
       ["created_at", "DESC"],
       ["id", "DESC"],
