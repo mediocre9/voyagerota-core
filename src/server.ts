@@ -161,6 +161,13 @@ app.use((_: Request, response: Response, __: NextFunction) => {
 
 app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
   Logger.error(error.message);
+
+  // a response is already streaming (e.g. firmware download), let express close it....
+  if (response.headersSent) {
+    next(error);
+    return;
+  }
+
   if (error instanceof ApiError) {
     response.status(error.statusCode).json({
       message: error.message,
@@ -170,6 +177,7 @@ app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
       },
       stackTrace: isDevEnvironment() ? error.stack : undefined,
     });
+    return;
   }
 
   if (error instanceof ZodError) {
@@ -181,8 +189,17 @@ app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
       },
       stackTrace: isDevEnvironment() ? error.stack : undefined,
     });
+    return;
   }
-  next();
+
+  response.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+    message: isDevEnvironment() ? error.message : "Something went wrong!",
+    status: {
+      reason: getReasonPhrase(StatusCodes.INTERNAL_SERVER_ERROR),
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    },
+    stackTrace: isDevEnvironment() ? error.stack : undefined,
+  });
 });
 
 app.listen(EnvConfig.PORT ?? 8080, "0.0.0.0", () => {

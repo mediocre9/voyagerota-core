@@ -250,9 +250,10 @@ export async function getLatestReleaseByProjectId(
   return release;
 }
 
-export async function getLatestProductionRelease(): Promise<Nullable<Release>> {
+export async function getLatestProductionRelease(projectId: number): Promise<Nullable<Release>> {
   const release = await Release.findOne({
     where: {
+      project_id_fk: projectId,
       channel: "production",
     },
     order: [[sequelize.col("flatten_version"), "DESC"]],

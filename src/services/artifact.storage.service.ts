@@ -3,6 +3,7 @@ import * as ArtifactDAL from "@dal/artifact.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { ArtifactDTO } from "@models/release.model";
+import { Project } from "@models/project.model";
 import { ReleaseArtifactIdPathParams, ReleaseIdPathParam } from "@schemas/release.schema";
 import { StorageManager } from "@services/storage.manager";
 import { ApiError } from "@utils/error";
@@ -26,6 +27,8 @@ const storage = multer.diskStorage({
     callback(null, uniqueFilename);
   },
 });
+
+export type DownloadableArtifact = { path: string; size: number };
 
 export const MAX_FILE_SIZE_IN_BYTES = 8e6; // 8mb in bytes....
 export const upload = multer({ storage: storage });
@@ -84,25 +87,40 @@ export class ArtifactStorageService {
     }
   }
 
-  public async getBinaryFilePath(params: ReleaseArtifactIdPathParams): Promise<string> {
+  /**
+   * @description Resolves a downloadable firmware binary for an authenticated device.
+   * The release must belong to the caller's project and be released (staging or
+   * production), and the artifact must belong to that release and be processed.
+   * Everything else is reported as not found so ids from other projects don't leak.
+   *
+   * `releasedOnly: false` (dashboard downloads) skips the channel and state checks so
+   * owners can still download draft builds, but keeps the project scoping.
+   */
+  public async getDownloadableArtifact(
+    params: ReleaseArtifactIdPathParams,
+    project: Project,
+    { releasedOnly }: { releasedOnly: boolean } = { releasedOnly: true },
+  ): Promise<DownloadableArtifact> {
     const { releaseId, artifactId } = params;
     const release = await ReleaseDAL.findReleaseByPublicId(releaseId);
-    if (!release) {
-      throw new ApiError("Release not found!", StatusCodes.BAD_REQUEST);
+    const isDownloadableRelease =
+      release !== null &&
+      release.getProjectForeignKeyId() === project.getId() &&
+      (!releasedOnly || release.isStaging() || release.isProduction());
+
+    if (!isDownloadableRelease) {
+      throw new ApiError("Release not found!", StatusCodes.NOT_FOUND);
     }
 
-    const artifact = await ArtifactDAL.findArtifactById(artifactId);
-
-    if (!artifact) {
-      throw new ApiError("artifact not found!", StatusCodes.NOT_FOUND);
+    const artifact = await ArtifactDAL.findReleaseArtifactById(release.getId(), artifactId);
+    if (!artifact || (releasedOnly && !artifact.isProcessed())) {
+      throw new ApiError("Artifact not found!", StatusCodes.NOT_FOUND);
     }
 
-    const pathToFile = path.join(
-      StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH,
-      artifact.getFileName(),
-    );
-
-    return pathToFile;
+    return {
+      path: path.join(StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH, artifact.getFileName()),
+      size: artifact.getFileSize(),
+    };
   }
 
   public async save(

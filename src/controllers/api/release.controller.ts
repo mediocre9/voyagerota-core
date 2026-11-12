@@ -13,7 +13,7 @@ import {
   ReleaseIdPathParam,
 } from "@schemas/release.schema";
 import { ArtifactReleaseService } from "@services/release.service";
-import { ApiError } from "@utils/error";
+import { DeviceLocals } from "@middlewares/device.auth";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import prettyBytes from "pretty-bytes";
@@ -133,55 +133,25 @@ export class ArtifactReleaseController {
 
   async getLatestRelease(
     request: Request<undefined, undefined, undefined, ReleaseChannelQueryParam>,
-    response: Response,
+    response: Response<unknown, DeviceLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const apiKey = request.get("x-api-key");
-      const projectId = request.get("x-project-id");
-
-      if (!apiKey && !projectId) {
-        throw new ApiError(
-          "x-api-key and x-project-id header is required!",
-          StatusCodes.BAD_REQUEST,
-        );
-      }
-
-      if (!apiKey) {
-        throw new ApiError("x-api-key header is required!", StatusCodes.BAD_REQUEST);
-      }
-
-      if (!projectId) {
-        throw new ApiError("x-project-id header is required!", StatusCodes.BAD_REQUEST);
-      }
-
       const query = await ReleaseChannelQueryParamSchema.parseAsync(request.query);
-      const release = await this._release.getLatestRelease(query, projectId, apiKey);
+      const release = await this._release.getLatestRelease(query, response.locals.project);
 
-      if (!release) {
-        response.status(StatusCodes.ACCEPTED).json({
-          message: "Processing to fetch latest release . . . .",
-          status: {
-            reason: getReasonPhrase(StatusCodes.ACCEPTED),
-            code: StatusCodes.ACCEPTED,
-          },
-        });
-        return;
-      }
-
-      release.artifact!.prettySize = prettyBytes(release.artifact!.size);
-      release.changeLog = await marked.marked(release.changeLog);
-      delete release.createdAt;
-      const downloadURL = `${EnvConfig.BASE_URL}/internal/api/v1/releases/${release?.id}/artifacts/${release?.artifact?.id}/download`;
-      const releaseWithDownloadUrl = {
-        ...release,
-        artifact: {
-          ...release?.artifact,
-          downloadURL: downloadURL,
-        },
-      };
+      const downloadURL = `${EnvConfig.BASE_URL}/internal/api/v1/releases/${release.id}/artifacts/${release.artifact?.id}/download`;
+      const { createdAt: _, ...publicRelease } = release;
       response.status(StatusCodes.OK).json({
-        release: releaseWithDownloadUrl,
+        release: {
+          ...publicRelease,
+          changeLog: await marked.marked(release.changeLog),
+          artifact: {
+            ...release.artifact,
+            prettySize: prettyBytes(release.artifact?.size ?? 0),
+            downloadURL: downloadURL,
+          },
+        },
         status: {
           reason: getReasonPhrase(StatusCodes.OK),
           code: StatusCodes.OK,

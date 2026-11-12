@@ -19,3 +19,15 @@ export async function findDeviceByMacAddress(macAddress: string) {
     include: { model: Release, required: true, attributes: ["public_id", "version", "channel"] },
   });
 }
+
+export async function findProjectDeviceByMacAddress(projectId: number, macAddress: string) {
+  return await Device.findOne({
+    where: { mac_address: macAddress },
+    include: {
+      model: Release,
+      required: true,
+      where: { project_id_fk: projectId },
+      attributes: ["public_id", "version", "channel"],
+    },
+  });
+}

@@ -5,8 +5,10 @@ import { injectable, inject } from "tsyringe";
 import {
   DeviceDTO,
   DeviceSchema,
+  ReleaseIdMacAddressPathParam,
   ReleaseIdMacAddressPathParamSchema,
 } from "@schemas/device.schema";
+import { DeviceLocals } from "@middlewares/device.auth";
 import { DeviceRegistryResponse } from "../../types";
 import { ReleaseIdPathParam, ReleaseIdPathParamSchema } from "@schemas/release.schema";
 
@@ -18,18 +20,21 @@ export class DeviceUpdateRegistryController {
   ) {}
 
   public async checkStatus(
-    request: Request<ReleaseIdPathParam>,
-    response: Response,
+    request: Request<ReleaseIdMacAddressPathParam>,
+    response: Response<unknown, DeviceLocals>,
     next: NextFunction,
   ) {
     try {
       const { releaseId, macAddress } = await ReleaseIdMacAddressPathParamSchema.parseAsync(
         request.params,
       );
-      const device = await this._deviceStatusRegistry.checkStatus({
-        releaseId: releaseId,
-        macAddress: macAddress,
-      });
+      const device = await this._deviceStatusRegistry.checkStatus(
+        {
+          releaseId: releaseId,
+          macAddress: macAddress,
+        },
+        response.locals.project,
+      );
       response.status(StatusCodes.OK).json({
         data: {
           ...device,
@@ -45,8 +50,8 @@ export class DeviceUpdateRegistryController {
   }
 
   public async update(
-    request: Request<ReleaseIdPathParam, undefined, undefined, DeviceDTO>,
-    response: Response<DeviceRegistryResponse>,
+    request: Request<ReleaseIdPathParam, DeviceRegistryResponse, DeviceDTO>,
+    response: Response<DeviceRegistryResponse, DeviceLocals>,
     next: NextFunction,
   ) {
     try {
@@ -58,6 +63,7 @@ export class DeviceUpdateRegistryController {
           macAddress: macAddress,
           status: status,
         },
+        response.locals.project,
       );
       response.status(StatusCodes.OK).json({
         message: message,
