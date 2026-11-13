@@ -4,6 +4,7 @@ import { ArtifactReleaseController } from "@controllers/api/release.controller";
 import { ArtifactStorageController } from "@controllers/api/artifact.storage.controller";
 import { loadOwnedProject } from "@middlewares/auth";
 import { authenticateDeviceToken, authenticateProjectKey } from "@middlewares/device.auth";
+import { limitDeviceCheckIns, limitProjectRequests } from "@middlewares/fair.use";
 import express from "express";
 import { container } from "tsyringe";
 
@@ -17,7 +18,11 @@ export const deviceApiRouter = express.Router();
 
 deviceApiRouter
   .route("/devices/register")
-  .post(authenticateProjectKey, deviceController.register.bind(deviceController));
+  .post(
+    authenticateProjectKey,
+    limitProjectRequests,
+    deviceController.register.bind(deviceController),
+  );
 
 deviceApiRouter
   .route("/devices/reports")
@@ -27,6 +32,7 @@ deviceApiRouter
   .route("/releases/latest")
   .get(
     authenticateDeviceToken,
+    limitDeviceCheckIns,
     deviceController.trackChannel.bind(deviceController),
     releaseController.getLatestRelease.bind(releaseController),
   );
