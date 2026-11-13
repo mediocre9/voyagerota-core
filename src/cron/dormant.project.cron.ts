@@ -30,8 +30,9 @@ function _getEmailTemplateType(channel: NonProductionChannel): EmailTemplate {
 const DAY = isDevEnvironment() ? 60 * 1000 : 24 * 60 * 60 * 1000;
 const LOCK_KEY = "vygr:cron:dormant-projects";
 
+// whole seconds, that's what the database keeps and what the keep link is signed with....
 function _getScheduledDeletionDate(from: Date, days: number): Date {
-  return new Date(from.getTime() + days * DAY);
+  return new Date(Math.floor((from.getTime() + days * DAY) / 1000) * 1000);
 }
 
 type DormantTier = "empty" | "draft" | "staging";

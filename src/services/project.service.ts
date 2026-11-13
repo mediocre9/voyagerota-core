@@ -109,7 +109,12 @@ export class ProjectService {
     const data = readKeepToken(token);
     const project = data ? await ProjectDAL.findProjectByPublicId(data.projectId) : null;
     const scheduledAt = project?.getDataValue("deletion_scheduled_at");
-    if (!data || !project || !scheduledAt || scheduledAt.getTime() !== data.scheduledAt) {
+    const sameDeadline = Boolean(
+      data &&
+      scheduledAt &&
+      Math.floor(scheduledAt.getTime() / 1000) === Math.floor(data.scheduledAt / 1000),
+    );
+    if (!data || !project || !sameDeadline) {
       throw new ApiError("This link has expired or was already used.", StatusCodes.GONE);
     }
     await ProjectDAL.clearDormantSchedule(project.getId());
