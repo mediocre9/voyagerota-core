@@ -2,7 +2,7 @@ import { Job, Worker as EmailWorker } from "bullmq";
 import { EMAIL_QUEUE_NAME, EmailQueue } from "./email.queue";
 import { Logger } from "@utils/logger";
 import { redis, redis as RedisConnection } from "@config/redis.connection.config";
-import { isDevEnvironment, isFastDormantTest } from "@config/config";
+import { isDevEnvironment } from "@config/config";
 import { getNextDayTimeDifference } from "@utils/utils";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
@@ -96,7 +96,7 @@ const worker = new EmailWorker(
   },
   {
     limiter: {
-      max: isFastDormantTest() ? 1000 : 15,
+      max: 15,
       duration: 15 * 60 * 1000, // 15m in ms.....
     },
     connection: RedisConnection,
