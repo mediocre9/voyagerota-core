@@ -6,6 +6,7 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  Transaction,
 } from "sequelize";
 import { Artifact } from "./artifact.model";
 import { Project } from "./project.model";
@@ -189,10 +190,14 @@ Release.init(
   },
 );
 
-async function _releaseCallBackHook(release: Release): Promise<void> {
+// runs inside the caller's transaction, otherwise it races the transaction on the same project row....
+async function _releaseCallBackHook(
+  release: Release,
+  options: { transaction?: Transaction | null },
+): Promise<void> {
   await Project.update(
     { last_activity: new Date(), is_suspended: false },
-    { where: { id: release.getProjectForeignKeyId() } },
+    { where: { id: release.getProjectForeignKeyId() }, transaction: options.transaction },
   );
 }
 

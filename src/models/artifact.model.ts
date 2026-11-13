@@ -5,6 +5,7 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  Transaction,
 } from "sequelize";
 import { Release } from "./release.model";
 import { nanoid } from "nanoid";
@@ -148,12 +149,19 @@ Artifact.init(
   },
 );
 
-async function _artifactCallBackHook(artifact: Artifact): Promise<void> {
-  const release = await Release.findOne({ where: { id: artifact.getReleaseForeignKeyId() } });
+// runs inside the caller's transaction, otherwise it races the transaction on the same project row....
+async function _artifactCallBackHook(
+  artifact: Artifact,
+  options: { transaction?: Transaction | null },
+): Promise<void> {
+  const release = await Release.findOne({
+    where: { id: artifact.getReleaseForeignKeyId() },
+    transaction: options.transaction,
+  });
   if (release) {
     await Project.update(
       { last_activity: new Date(), is_suspended: false },
-      { where: { id: release.getProjectForeignKeyId() } },
+      { where: { id: release.getProjectForeignKeyId() }, transaction: options.transaction },
     );
   }
 }
