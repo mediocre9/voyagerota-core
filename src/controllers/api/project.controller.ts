@@ -105,4 +105,38 @@ export class ProjectController {
       next(error);
     }
   }
+
+  async keepProject(
+    request: Request<ProjectIdPathParam>,
+    response: Response<ProjectDeletedResponse, UserLocals>,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const param = await ProjectIdPathParamSchema.parseAsync(request.params);
+      await this._project.keepProject(param.projectId, response.locals.user);
+      response.status(StatusCodes.OK).json({
+        message: "Project will be kept!",
+        status: { reason: getReasonPhrase(StatusCodes.OK), code: StatusCodes.OK },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async keepProjectByToken(
+    request: Request<unknown, unknown, { token?: string }>,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const projectName = await this._project.keepProjectByToken(String(request.body?.token ?? ""));
+      response.status(StatusCodes.OK).json({
+        message: "Project will be kept!",
+        projectName: projectName,
+        status: { reason: getReasonPhrase(StatusCodes.OK), code: StatusCodes.OK },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

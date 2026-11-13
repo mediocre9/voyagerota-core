@@ -5,15 +5,20 @@ import { redis, redis as RedisConnection } from "@config/redis.connection.config
 import { isDevEnvironment } from "@config/config";
 import { getNextDayTimeDifference } from "@utils/utils";
 import * as ProjectDAL from "@dal/project.dal";
+import * as ReleaseDAL from "@dal/release.dal";
 import {
   sendEmail,
   IEmailContentData,
   DormantProjectEmailAlert,
+  StaleReleaseEmailAlert,
   SystemStatusEmailAlert,
   getBrevoSMTPDailyQuota,
 } from "@config/email.client";
 
-type EmailAlertContentData = DormantProjectEmailAlert | SystemStatusEmailAlert;
+type EmailAlertContentData =
+  | DormantProjectEmailAlert
+  | StaleReleaseEmailAlert
+  | SystemStatusEmailAlert;
 
 const BREVO_QUOTA_CHECK_KEY = "brevo-quota-check-key";
 const BREVO_QUOTA_CHECK_DATA = "checked";
@@ -62,6 +67,25 @@ const worker = new EmailWorker(
 
       if ("projectId" in job.data) {
         await ProjectDAL.updateProjectSuspendStatus(job.data.projectId, true);
+
+        // the deadline only counts once the user was actually told....
+        if (job.data.notice && job.data.scheduledAt) {
+          await ProjectDAL.scheduleDormantDeletion(
+            job.data.projectId,
+            job.data.notice,
+            new Date(job.data.scheduledAt),
+          );
+        }
+      }
+
+      if ("releaseNotices" in job.data) {
+        for (const { releaseId, notice, scheduledAt } of job.data.releaseNotices) {
+          await ReleaseDAL.updateStaleNotice(
+            releaseId,
+            notice,
+            scheduledAt ? new Date(scheduledAt) : null,
+          );
+        }
       }
 
       Logger.info(`Email Message : ${job.data.recipientEmail} - ${job.data.subject}`);

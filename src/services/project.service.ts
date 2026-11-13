@@ -11,6 +11,7 @@ import { StatusCodes } from "http-status-codes";
 import { injectable } from "tsyringe";
 import { RolloutSettings, rolloutSettings } from "./device.service";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
+import { readKeepToken } from "@utils/keep.token";
 
 export interface ProjectDTOFields {
   id: string;
@@ -20,6 +21,7 @@ export interface ProjectDTOFields {
   apiKey: string;
   status: string;
   settings: RolloutSettings;
+  deletionScheduledAt: Date | null;
 }
 
 @injectable()
@@ -67,6 +69,7 @@ export class ProjectService {
         status: e.Releases?.at(0)?.getChannel(),
         apiKey: e.getApiKey(),
         settings: rolloutSettings(e),
+        deletionScheduledAt: e.getDataValue("deletion_scheduled_at") ?? null,
       };
     }) as ProjectDTOFields[];
   }
@@ -85,6 +88,35 @@ export class ProjectService {
       throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
     }
 
+    await this._softDeleteWithFiles(project);
+  }
+
+  // dormant projects go the same way as a user delete, so their files are cleaned up too....
+  public async deleteDormantProject(project: Project): Promise<void> {
+    await this._softDeleteWithFiles(project);
+  }
+
+  public async keepProject(projectId: string, owner: User): Promise<void> {
+    const project = await ProjectDAL.findProjectByPublicId(projectId);
+    if (!project || project.getUserForeignKey() !== owner.getId()) {
+      throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
+    }
+    await ProjectDAL.clearDormantSchedule(project.getId());
+  }
+
+  // from the email link, works without signing in while that deadline still stands....
+  public async keepProjectByToken(token: string): Promise<string> {
+    const data = readKeepToken(token);
+    const project = data ? await ProjectDAL.findProjectByPublicId(data.projectId) : null;
+    const scheduledAt = project?.getDataValue("deletion_scheduled_at");
+    if (!data || !project || !scheduledAt || scheduledAt.getTime() !== data.scheduledAt) {
+      throw new ApiError("This link has expired or was already used.", StatusCodes.GONE);
+    }
+    await ProjectDAL.clearDormantSchedule(project.getId());
+    return project.getProjectName();
+  }
+
+  private async _softDeleteWithFiles(project: Project): Promise<void> {
     const transaction = await db.transaction();
     try {
       const releases = await ReleaseDAL.findReleasesByProjectId(project.getId());

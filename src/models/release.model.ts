@@ -30,6 +30,7 @@ export interface ReleaseAttributesDTO {
   stagedAt?: Date | null;
   releasedAt?: Date | null;
   revokedAt?: Date | null;
+  deletionScheduledAt?: Date | null;
   artifact?: ArtifactDTO;
 }
 
@@ -46,7 +47,11 @@ export class Release extends Model<InferAttributes<Release>, InferCreationAttrib
   declare released_at: Date | null;
   declare staged_at?: Date | null;
   declare revoked_at?: Date | null;
+  declare deletion_scheduled_at?: Date | null;
+  declare stale_notice?: "warned" | "reminded" | null;
+  declare updated_at?: Date | null;
   declare Artifacts?: Artifact[];
+  declare Project?: NonAttribute<Project>;
 
   getId() {
     return this.getDataValue("id")!;
@@ -106,6 +111,7 @@ export class Release extends Model<InferAttributes<Release>, InferCreationAttrib
       stagedAt: this.getDataValue("staged_at") ?? null,
       releasedAt: this.getDataValue("released_at") ?? null,
       revokedAt: this.getDataValue("revoked_at") ?? null,
+      deletionScheduledAt: this.getDataValue("deletion_scheduled_at") ?? null,
       artifact:
         this.Artifacts && this.Artifacts[0]
           ? {
@@ -177,6 +183,14 @@ Release.init(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    deletion_scheduled_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    stale_notice: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+    },
   },
   {
     sequelize: db,
@@ -196,9 +210,22 @@ async function _releaseCallBackHook(
   options: { transaction?: Transaction | null },
 ): Promise<void> {
   await Project.update(
-    { last_activity: new Date(), is_suspended: false },
+    {
+      last_activity: new Date(),
+      is_suspended: false,
+      deletion_scheduled_at: null,
+      dormant_notice: null,
+    },
     { where: { id: release.getProjectForeignKeyId() }, transaction: options.transaction },
   );
+
+  // any change to the release itself cancels its own scheduled deletion....
+  if (release.getDataValue("deletion_scheduled_at") || release.getDataValue("stale_notice")) {
+    await Release.update(
+      { deletion_scheduled_at: null, stale_notice: null },
+      { where: { id: release.getId() }, transaction: options.transaction },
+    );
+  }
 }
 
 Release.afterCreate(_releaseCallBackHook);

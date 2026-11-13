@@ -39,6 +39,10 @@ releaseApiRouter
   .get(insightsController.preflight.bind(insightsController));
 
 releaseApiRouter
+  .route("/:projectId/releases/:releaseId/keep")
+  .post(insightsController.keepRelease.bind(insightsController));
+
+releaseApiRouter
   .route("/:projectId/settings")
   .get(insightsController.getSettings.bind(insightsController))
   .patch(insightsController.updateSettings.bind(insightsController));

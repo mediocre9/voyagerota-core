@@ -4,6 +4,8 @@ import { Op } from "sequelize";
 import { Transaction } from "sequelize";
 import sequelize from "sequelize";
 import { Artifact } from "@models/artifact.model";
+import { Project } from "@models/project.model";
+import { User } from "@models/index";
 import { Nullable } from "../types";
 
 export async function createRelease(
@@ -328,5 +330,67 @@ export async function updateChangelog(releaseId: string, changelog: string): Pro
   await Release.update(
     { change_log: changelog },
     { where: { public_id: releaseId }, individualHooks: true },
+  );
+}
+
+// draft and staging releases nobody touched since the given date, of projects that shipped before....
+export async function findStaleReleases(date: Date, limit: number): Promise<readonly Release[]> {
+  return await Release.findAll({
+    include: [
+      { model: Artifact, as: "Artifacts", required: false },
+      {
+        model: Project,
+        as: "Project",
+        required: true,
+        include: [
+          { model: User, as: "User" },
+          {
+            model: Release,
+            as: "Releases",
+            required: true,
+            attributes: ["id"],
+            where: { channel: { [Op.in]: ["production", "revoked"] } },
+          },
+        ],
+      },
+    ],
+    where: {
+      channel: { [Op.in]: ["draft", "staging"] },
+      updated_at: { [Op.lte]: date },
+    },
+    limit: limit,
+  });
+}
+
+// silent so the notice itself doesn't count as activity on the release....
+export async function updateStaleNotice(
+  releaseId: number,
+  notice: "warned" | "reminded",
+  scheduledAt: Date | null,
+): Promise<void> {
+  await Release.update(
+    { stale_notice: notice, deletion_scheduled_at: scheduledAt },
+    { where: { id: releaseId }, silent: true },
+  );
+}
+
+export async function findReleasesDueForDeletion(
+  date: Date,
+  limit: number,
+): Promise<readonly Release[]> {
+  return await Release.findAll({
+    where: {
+      channel: "draft",
+      stale_notice: "warned",
+      deletion_scheduled_at: { [Op.lte]: date },
+    },
+    limit: limit,
+  });
+}
+
+export async function clearStaleNotice(releaseId: number): Promise<void> {
+  await Release.update(
+    { stale_notice: null, deletion_scheduled_at: null },
+    { where: { id: releaseId } },
   );
 }
