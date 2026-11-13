@@ -66,6 +66,22 @@ export function getReleaseDigestTemplate(items: ReleaseDigestItem[]): string {
     <p>Any change to a release, or Keep on its page, cancels its deletion. Releases in staging are never deleted automatically.</p>`;
 }
 
+export type FailureAlertData = {
+  projectName: string;
+  version: string;
+  updated: number;
+  failed: number;
+  willRevoke: boolean;
+};
+
+export function getFailureAlertTemplate(data: FailureAlertData): string {
+  const next = data.willRevoke
+    ? "<p>Auto-revoke is on, so this release is being revoked and your devices will roll back to the previous release.</p>"
+    : "<p>Open the release in VoyagerOTA to check the error codes, and revoke it if it needs to be pulled.</p>";
+  return `<p>Release <strong>v${data.version}</strong> of <strong>${data.projectName}</strong> crossed your failure threshold.</p>
+    <p><strong>${data.failed}</strong> device(s) failed to update, <strong>${data.updated}</strong> updated successfully.</p>${next}`;
+}
+
 const brevo = new BrevoClient({
   apiKey: process.env.BREVO_SMTP_API_KEY,
 });

@@ -6,6 +6,7 @@ import { DeviceService, rolloutSettings } from "@services/device.service";
 import { ArtifactReleaseService } from "@services/release.service";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
+import * as PlanService from "@services/plan.service";
 import { inject, injectable } from "tsyringe";
 
 const status = (code: StatusCodes) => ({ reason: getReasonPhrase(code), code });
@@ -93,6 +94,7 @@ export class ReleaseInsightsController {
     try {
       const dto = await RolloutSettingsSchema.parseAsync(request.body);
       const project = response.locals.project;
+      if (dto.autoRevoke) await PlanService.assertCanAutoRevoke(project);
       await ProjectDAL.updateRolloutSettings(project.getId(), {
         failure_alert_count: dto.failureAlertCount,
         failure_alert_percent: dto.failureAlertPercent,

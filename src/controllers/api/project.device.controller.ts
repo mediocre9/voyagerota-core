@@ -72,7 +72,7 @@ export class ProjectDeviceController {
 
   async approve(_: Request, response: Response<unknown, DeviceRouteLocals>, next: NextFunction) {
     try {
-      const device = await this._devices.approve(response.locals.device);
+      const device = await this._devices.approve(response.locals.device, response.locals.project);
       response.status(StatusCodes.OK).json({ device, status: status(StatusCodes.OK) });
     } catch (error) {
       next(error);

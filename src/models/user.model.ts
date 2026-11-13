@@ -1,6 +1,7 @@
 import { db } from "../config/db.config";
 import { nanoid } from "nanoid";
 import bcrypt from "bcrypt";
+import type { PlanName } from "@config/plans";
 import {
   CreationOptional,
   DataTypes,
@@ -18,6 +19,9 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare picture_url?: string;
   declare password?: string;
   declare is_revoked?: boolean;
+  declare plan: CreationOptional<PlanName>;
+  declare trial_ends_at: CreationOptional<Date | null>;
+  declare device_packs: CreationOptional<number>;
   declare deleted_at: CreationOptional<Date>;
 
   getId() {
@@ -42,6 +46,18 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
 
   isRevoked() {
     return this.getDataValue("is_revoked");
+  }
+
+  getPlan(): PlanName {
+    return this.getDataValue("plan") ?? "maker";
+  }
+
+  getTrialEndsAt(): Date | null {
+    return this.getDataValue("trial_ends_at") ?? null;
+  }
+
+  getDevicePacks(): number {
+    return this.getDataValue("device_packs") ?? 0;
   }
 }
 
@@ -93,6 +109,20 @@ User.init(
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: false,
+    },
+    plan: {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: "maker",
+    },
+    trial_ends_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    device_packs: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
     },
     deleted_at: {
       type: DataTypes.DATE,

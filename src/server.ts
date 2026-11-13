@@ -8,7 +8,7 @@ import { taskApiRouter } from "@routes/apis/artifact.task.routes";
 import { keepApiRouter, projectApiRouter } from "@routes/apis/project.routes";
 import { releaseApiRouter } from "@routes/apis/release.routes";
 import { deviceApiRouter, projectDeviceApiRouter } from "@routes/apis/device.routes";
-import { ApiError } from "@utils/error";
+import { ApiError, PlanLimitError } from "@utils/error";
 import { Logger } from "@utils/logger";
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
@@ -82,6 +82,7 @@ app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
         reason: getReasonPhrase(error.statusCode),
         code: error.statusCode,
       },
+      ...(error instanceof PlanLimitError ? { planLimit: error.limit } : {}),
       stackTrace: isDevEnvironment() ? error.stack : undefined,
     });
     return;

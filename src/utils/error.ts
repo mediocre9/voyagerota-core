@@ -14,3 +14,21 @@ export class ApiError extends Error {
     }
   }
 }
+
+export type PlanLimitKind =
+  | "projects"
+  | "devices"
+  | "releases"
+  | "emailAlerts"
+  | "autoRevoke"
+  | "preAddDevices";
+
+// 402 so the dashboard can tell a plan limit apart from any other refusal....
+export class PlanLimitError extends ApiError {
+  constructor(
+    message: string,
+    public readonly limit: PlanLimitKind,
+  ) {
+    super(message, StatusCodes.PAYMENT_REQUIRED);
+  }
+}
