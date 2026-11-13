@@ -3,7 +3,7 @@ import "@models/index";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { Logger } from "@utils/logger";
-import { isDevEnvironment } from "@config/config";
+import { isDevEnvironment, isFastDormantTest } from "@config/config";
 import { redis } from "@config/redis.connection.config";
 import { EmailTemplate, getTemplate, IEmailContentData } from "@config/email.client";
 import { EmailQueue } from "@queues/email.queue";
@@ -26,11 +26,13 @@ function _isDryRun(): boolean {
 
 async function _purgeSoftDeletedProjects(): Promise<PurgeStatus> {
   const MAX_DAYS = 90; //  90 days = 3 months.....
-  const MAX_DAYS_IN_MILLISECONDS = isDevEnvironment()
-    ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
-    : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);
+  const MAX_DAYS_IN_MILLISECONDS = isFastDormantTest()
+    ? new Date(Date.now() - 30 * 1000) // 30 seconds with DORMANT_FAST_TEST.....
+    : isDevEnvironment()
+      ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
+      : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);
 
-  const count = await ProjectDAL.purgeAllProjects(MAX_DAYS_IN_MILLISECONDS);
+  const count = await ProjectDAL.purgeCleanedUpProjects(MAX_DAYS_IN_MILLISECONDS);
   return { count: count, removed: count > 0 };
 }
 
@@ -77,6 +79,15 @@ async function _purgeStaleReleases(now: Date): Promise<PurgeStatus> {
   return { count: count, removed: count > 0 };
 }
 
+async function _safely(name: string, step: () => Promise<PurgeStatus>): Promise<PurgeStatus> {
+  try {
+    return await step();
+  } catch (error) {
+    Logger.error(`Purging ${name} failed: ${(error as Error).message}`);
+    return { count: 0, removed: false };
+  }
+}
+
 export async function runPurgeCron(now: Date = new Date()): Promise<void> {
   // * only one instance purges at a time....
   if ((await redis.set(LOCK_KEY, "1", "EX", 10 * 60, "NX")) !== "OK") {
@@ -87,9 +98,10 @@ export async function runPurgeCron(now: Date = new Date()): Promise<void> {
   try {
     Logger.info("Purging cron job inititated!");
 
-    const softDeletedProjects = await _purgeSoftDeletedProjects();
-    const dormantProjects = await _purgeDormantProjects(now);
-    const staleReleases = await _purgeStaleReleases(now);
+    // * each step on its own, one failing must not hold the others back....
+    const softDeletedProjects = await _safely("soft deleted projects", _purgeSoftDeletedProjects);
+    const dormantProjects = await _safely("dormant projects", () => _purgeDormantProjects(now));
+    const staleReleases = await _safely("stale releases", () => _purgeStaleReleases(now));
 
     if (softDeletedProjects.removed) {
       Logger.info(`Purged soft deleted projects${softDeletedProjects.count} projects!`);
@@ -110,8 +122,12 @@ export async function runPurgeCron(now: Date = new Date()): Promise<void> {
 }
 
 // *Runs daily at 12:00am......
-// *for development 3 minutes.....
-const CRON_EXPRESSION = isDevEnvironment() ? "*/180 * * * * *" : "0 0 0 * * *";
+// *for development 3 minutes, 5 seconds with DORMANT_FAST_TEST.....
+const CRON_EXPRESSION = isFastDormantTest()
+  ? "*/5 * * * * *"
+  : isDevEnvironment()
+    ? "*/180 * * * * *"
+    : "0 0 0 * * *";
 
 const PurgingCronJob = new CronJob(CRON_EXPRESSION, async () => {
   try {
