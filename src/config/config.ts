@@ -27,8 +27,3 @@ export const EnvConfig = {
 export function isDevEnvironment(): boolean {
   return process.env.ENVIRONMENT === "development";
 }
-
-// * development only: a dormant "day" lasts a second, the whole cleanup runs in under 2 minutes....
-export function isFastDormantTest(): boolean {
-  return isDevEnvironment() && process.env.DORMANT_FAST_TEST === "true";
-}
