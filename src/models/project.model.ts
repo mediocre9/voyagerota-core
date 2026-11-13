@@ -5,6 +5,8 @@ import { generateApiKey } from "@utils/utils";
 import { DataTypes, InferAttributes, InferCreationAttributes, Model } from "sequelize";
 import { Release } from "./release.model";
 
+export type DormantNotice = "warned" | "reminded" | "final";
+
 export class Project extends Model<InferAttributes<Project>, InferCreationAttributes<Project>> {
   declare id?: number;
   declare public_id?: string;
@@ -21,6 +23,8 @@ export class Project extends Model<InferAttributes<Project>, InferCreationAttrib
   declare failure_alert_count?: number;
   declare failure_alert_percent?: number;
   declare auto_revoke?: boolean;
+  declare deletion_scheduled_at?: Date | null;
+  declare dormant_notice?: DormantNotice | null;
 
   getPublicId() {
     return this.getDataValue("public_id")!;
@@ -143,6 +147,14 @@ Project.init(
       defaultValue() {
         return new Date();
       },
+    },
+    deletion_scheduled_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    dormant_notice: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
     },
     updated_at: {
       type: DataTypes.DATE,

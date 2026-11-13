@@ -160,8 +160,17 @@ async function _artifactCallBackHook(
   });
   if (release) {
     await Project.update(
-      { last_activity: new Date(), is_suspended: false },
+      {
+        last_activity: new Date(),
+        is_suspended: false,
+        deletion_scheduled_at: null,
+        dormant_notice: null,
+      },
       { where: { id: release.getProjectForeignKeyId() }, transaction: options.transaction },
+    );
+    await Release.update(
+      { deletion_scheduled_at: null, stale_notice: null },
+      { where: { id: release.getId() }, transaction: options.transaction },
     );
   }
 }

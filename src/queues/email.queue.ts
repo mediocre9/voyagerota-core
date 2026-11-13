@@ -16,7 +16,8 @@ export class EmailQueue<T extends IEmailContentData> extends Queue<IEmailContent
     });
   }
 
-  async enqueueEmail(email: T): Promise<void> {
-    await this.add("email-queue-job-name", email);
+  // a job id makes the same notice impossible to queue twice....
+  async enqueueEmail(email: T, jobId?: string): Promise<void> {
+    await this.add("email-queue-job-name", email, jobId ? { jobId } : undefined);
   }
 }

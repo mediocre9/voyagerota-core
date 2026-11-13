@@ -1,6 +1,7 @@
 import * as crypto from "node:crypto";
 import { isPlaceholderChangelog, stagingGate } from "@utils/staging.gate";
 import { redis } from "@config/redis.connection.config";
+import * as ProjectDAL from "@dal/project.dal";
 import * as DeviceDAL from "@dal/project.device.dal";
 import * as ReportDAL from "@dal/device.report.dal";
 import * as ReleaseDAL from "@dal/release.dal";
@@ -173,6 +174,11 @@ export class DeviceService {
     const isFirstInWindow = await redis.set(key, "1", "EX", LAST_SEEN_THROTTLE, "NX");
     if (isFirstInWindow === "OK") {
       await DeviceDAL.touch(device.id, data);
+      // a device checking in keeps its project out of the dormant cleanup, once an hour per project....
+      const projectKey = `vygr:project:active:${device.projectId}`;
+      if ((await redis.set(projectKey, "1", "EX", 3600, "NX")) === "OK") {
+        await ProjectDAL.clearDormantSchedule(device.projectId);
+      }
     }
   }
 

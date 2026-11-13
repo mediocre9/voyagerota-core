@@ -63,14 +63,23 @@ export class ReleaseInsightsController {
     }
   }
 
-  getSettings(_: Request, response: Response<unknown, ProjectLocals>, next: NextFunction) {
+  async keepRelease(_: Request, response: Response<unknown, ReleaseLocals>, next: NextFunction) {
     try {
+      await ReleaseDAL.clearStaleNotice(response.locals.release.getId());
       response
         .status(StatusCodes.OK)
-        .json({
-          settings: rolloutSettings(response.locals.project),
-          status: status(StatusCodes.OK),
-        });
+        .json({ message: "Release will be kept!", status: status(StatusCodes.OK) });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  getSettings(_: Request, response: Response<unknown, ProjectLocals>, next: NextFunction) {
+    try {
+      response.status(StatusCodes.OK).json({
+        settings: rolloutSettings(response.locals.project),
+        status: status(StatusCodes.OK),
+      });
     } catch (error) {
       next(error);
     }

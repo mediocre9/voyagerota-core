@@ -5,7 +5,7 @@ import { isClerkEnabled } from "@config/clerk.config";
 import { EnvConfig, isDevEnvironment } from "@config/config";
 import { requireUser } from "@middlewares/auth";
 import { taskApiRouter } from "@routes/apis/artifact.task.routes";
-import { projectApiRouter } from "@routes/apis/project.routes";
+import { keepApiRouter, projectApiRouter } from "@routes/apis/project.routes";
 import { releaseApiRouter } from "@routes/apis/release.routes";
 import { deviceApiRouter, projectDeviceApiRouter } from "@routes/apis/device.routes";
 import { ApiError } from "@utils/error";
@@ -44,6 +44,8 @@ if (isClerkEnabled()) {
 app.get("/health", (_: Request, response: Response) => {
   response.status(StatusCodes.OK).json({ status: "ok" });
 });
+
+app.use("/api/v1", keepApiRouter);
 
 // dashboard apis for voyagerota-web (clerk)....
 app.use("/api/v1/workspace", requireUser, projectApiRouter);

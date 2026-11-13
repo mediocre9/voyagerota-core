@@ -1,4 +1,4 @@
-import { Project } from "@models/project.model";
+import { DormantNotice, Project } from "@models/project.model";
 import { generateApiKey } from "@utils/utils";
 import sequelize, { Sequelize, Transaction } from "sequelize";
 import { Op } from "sequelize";
@@ -227,4 +227,61 @@ export async function updateRolloutSettings(
 ): Promise<void> {
   const values = Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined));
   await Project.update(values, { where: { id: projectId } });
+}
+
+export async function findIdleProjects(limit: number, date: Date): Promise<readonly Project[]> {
+  return await Project.findAll({
+    include: [
+      { model: Release, as: "Releases" },
+      { model: User, as: "User" },
+    ],
+    where: {
+      last_activity: {
+        [Op.lte]: date,
+      },
+    },
+    order: [
+      [sequelize.col("last_activity"), "ASC"],
+      [{ model: Release, as: "Releases" }, "id", "ASC"],
+    ],
+    limit: limit,
+  });
+}
+
+export async function scheduleDormantDeletion(
+  projectId: number,
+  notice: DormantNotice,
+  scheduledAt: Date,
+): Promise<void> {
+  await Project.update(
+    { dormant_notice: notice, deletion_scheduled_at: scheduledAt, is_suspended: true },
+    { where: { id: projectId } },
+  );
+}
+
+export async function clearDormantSchedule(projectId: number): Promise<void> {
+  await Project.update(
+    {
+      last_activity: new Date(),
+      is_suspended: false,
+      dormant_notice: null,
+      deletion_scheduled_at: null,
+    },
+    { where: { id: projectId } },
+  );
+}
+
+// only after the final notice went out, so nobody is deleted without being told....
+export async function findProjectsDueForDeletion(
+  date: Date,
+  limit: number,
+): Promise<readonly Project[]> {
+  return await Project.findAll({
+    include: [{ model: User, as: "User" }],
+    where: {
+      deletion_scheduled_at: { [Op.lte]: date },
+      dormant_notice: "final",
+    },
+    limit: limit,
+  });
 }
