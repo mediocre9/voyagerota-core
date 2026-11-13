@@ -21,6 +21,11 @@ import { container, injectable } from "tsyringe";
 import { db } from "@config/db.config";
 import { Release } from "@models/release.model";
 import { ArtifactReleaseService } from "./release.service";
+import * as PlanService from "./plan.service";
+import { getFailureAlertTemplate, IEmailContentData } from "@config/email.client";
+import { EmailQueue } from "@queues/email.queue";
+
+const alertQueue = new EmailQueue<IEmailContentData>();
 
 export const DEVICE_TOKEN_PREFIX = "vdt_";
 const TOKEN_CACHE_TTL = 5 * 60; // seconds....
@@ -106,6 +111,13 @@ export class DeviceService {
     let device = await DeviceDAL.findByHardwareId(project.getId(), dto.hardwareId);
 
     if (!device) {
+      // waiting devices are capped per project so a flood of fake ids can't fill the table....
+      if (!(await PlanService.canQueueWaitingDevice(project))) {
+        throw new ApiError(
+          "Too many devices are waiting for approval in this project!",
+          StatusCodes.TOO_MANY_REQUESTS,
+        );
+      }
       device = await DeviceDAL.create({
         projectId: project.getId(),
         hardwareId: dto.hardwareId,
@@ -195,6 +207,8 @@ export class DeviceService {
       }
     }
 
+    const plan = await PlanService.getProjectPlan(project);
+
     // report, history cap and the per release outcome are saved together....
     await db.transaction(async (transaction) => {
       await ReportDAL.create(
@@ -209,7 +223,7 @@ export class DeviceService {
         },
         transaction,
       );
-      await ReportDAL.pruneHistory(device.id, HISTORY_LIMIT, transaction);
+      await ReportDAL.pruneHistory(device.id, plan.limits.historyPerDevice, transaction);
       if (releaseId) {
         await ReportDAL.upsertOutcome(
           {
@@ -248,6 +262,8 @@ export class DeviceService {
   }
 
   public async add(project: Project, dto: DeviceCreateDTO): Promise<ProjectDeviceDTO> {
+    await PlanService.assertCanPreAddDevice(project);
+
     const existing = await DeviceDAL.findByHardwareId(project.getId(), dto.hardwareId);
     if (existing) {
       throw new ApiError(
@@ -277,10 +293,11 @@ export class DeviceService {
     return device.toDTO();
   }
 
-  public async approve(device: ProjectDevice): Promise<ProjectDeviceDTO> {
+  public async approve(device: ProjectDevice, project?: Project): Promise<ProjectDeviceDTO> {
     if (device.isActive()) {
       throw new ApiError("Device is already approved!", StatusCodes.CONFLICT);
     }
+    if (project) await PlanService.assertCanApproveDevice(project);
     device.status = "active";
     device.approved_at = new Date();
     await device.save();
@@ -374,17 +391,31 @@ export class DeviceService {
     };
   }
 
-  // after a failed report on the latest production release: auto revoke if the project wants it....
+  // after a failed report on the latest production release: alert, and auto revoke if the project wants it....
   private async _guardProductionRelease(project: Project, releaseId: number): Promise<void> {
     const settings = rolloutSettings(project);
-    if (!settings.autoRevoke) return;
 
     const latest = await ReleaseDAL.getLatestProductionRelease(project.getId());
     if (!latest || latest.getId() !== releaseId) return;
 
     const [row] = await ReportDAL.getRollout(project.getId(), releaseId);
-    if (!isOverFailureThreshold(settings, Number(row?.updated ?? 0), Number(row?.failed ?? 0)))
-      return;
+    const updated = Number(row?.updated ?? 0);
+    const failed = Number(row?.failed ?? 0);
+    if (!isOverFailureThreshold(settings, updated, failed)) return;
+
+    const owner = await PlanService.getProjectOwner(project);
+    const plan = PlanService.getAccountPlan(owner);
+    const willRevoke = settings.autoRevoke && plan.limits.autoRevoke;
+
+    if (plan.limits.emailAlerts) {
+      await this._sendFailureAlert(owner.getEmail(), project, latest, {
+        updated,
+        failed,
+        willRevoke,
+      });
+    }
+
+    if (!willRevoke) return;
 
     const withArtifact = await ReleaseDAL.findReleaseWithArtifact(latest.getPublicId());
     const artifactId = withArtifact?.Artifacts?.[0]?.public_id;
@@ -399,6 +430,35 @@ export class DeviceService {
       );
     } catch (error) {
       Logger.error(`Auto revoke failed: ${(error as Error).message}`);
+    }
+  }
+
+  // once per release, the job id keeps a burst of failed reports from sending it twice....
+  private async _sendFailureAlert(
+    email: string,
+    project: Project,
+    release: Release,
+    counts: { updated: number; failed: number; willRevoke: boolean },
+  ): Promise<void> {
+    const key = `vygr:alert:release:${release.getId()}`;
+    if ((await redis.set(key, "1", "EX", 90 * 24 * 60 * 60, "NX")) !== "OK") return;
+
+    try {
+      await alertQueue.enqueueEmail(
+        {
+          subject: `${project.getProjectName()} v${release.getVersion()} is failing on devices`,
+          recipientEmail: email,
+          body: getFailureAlertTemplate({
+            projectName: project.getProjectName(),
+            version: release.getVersion(),
+            ...counts,
+          }),
+        },
+        `failure-alert-${release.getId()}`,
+      );
+    } catch (error) {
+      await redis.del(key);
+      Logger.error(`Failure alert email not queued: ${(error as Error).message}`);
     }
   }
 

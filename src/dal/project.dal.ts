@@ -91,6 +91,10 @@ export async function findProjectsByUserId(userId: number): Promise<readonly Pro
   });
 }
 
+export async function countProjectsByUserId(userId: number): Promise<number> {
+  return await Project.count({ where: { user_id_fk: userId } });
+}
+
 export async function findProjectByPublicId(
   publicID: string,
 ): Promise<Readonly<Nullable<Project>>> {
