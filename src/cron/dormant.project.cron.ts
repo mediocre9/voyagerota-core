@@ -3,7 +3,7 @@ import "@models/index";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { EmailQueue } from "@queues/email.queue";
-import { isDevEnvironment } from "@config/config";
+import { isDevEnvironment, isFastDormantTest } from "@config/config";
 import { redis } from "@config/redis.connection.config";
 import {
   DormantProjectEmailAlert,
@@ -26,8 +26,8 @@ function _getEmailTemplateType(channel: NonProductionChannel): EmailTemplate {
   return channel === "draft" ? EmailTemplate.DRAFT_RELEASE : EmailTemplate.STAGING_RELEASE;
 }
 
-// * in development a "day" is a minute so the whole flow can be watched....
-const DAY = isDevEnvironment() ? 60 * 1000 : 24 * 60 * 60 * 1000;
+// * in development a "day" is a minute, a second with DORMANT_FAST_TEST....
+const DAY = isFastDormantTest() ? 1000 : isDevEnvironment() ? 60 * 1000 : 24 * 60 * 60 * 1000;
 const LOCK_KEY = "vygr:cron:dormant-projects";
 
 // whole seconds, that's what the database keeps and what the keep link is signed with....
@@ -224,8 +224,12 @@ export async function runDormantProjectCron(now: Date = new Date()): Promise<voi
 }
 
 // * Runs daily at 12:00am....
-// * for development 5 minutes....
-const CRON_EXPRESSION = isDevEnvironment() ? "*/300 * * * * *" : "0 0 0 * * *";
+// * for development 5 minutes, 5 seconds with DORMANT_FAST_TEST....
+const CRON_EXPRESSION = isFastDormantTest()
+  ? "*/5 * * * * *"
+  : isDevEnvironment()
+    ? "*/300 * * * * *"
+    : "0 0 0 * * *";
 
 const dormantProjectCron = new CronJob(CRON_EXPRESSION, async (): Promise<void> => {
   try {
