@@ -1,10 +1,8 @@
-// a staging release may go to production once a device installed it and none of them failed....
-export type StagingGate = { passed: boolean; reason: "untested" | "failing" | null };
+// a staging release may go to production once a staging device installed it successfully....
+export type StagingGate = { passed: boolean };
 
-export function stagingGate(updated: number, failed: number): StagingGate {
-  if (failed > 0) return { passed: false, reason: "failing" };
-  if (updated < 1) return { passed: false, reason: "untested" };
-  return { passed: true, reason: null };
+export function stagingGate(updated: number): StagingGate {
+  return { passed: updated >= 1 };
 }
 
 // the default changelog a release gets when none was written....

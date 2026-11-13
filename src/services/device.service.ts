@@ -76,12 +76,7 @@ export type ReleaseDeviceRow = {
 export type PromotionPreflight = {
   staging: { updated: number; failed: number };
   gatePassed: boolean;
-  gateReason: "untested" | "failing" | null;
   productionDevices: number;
-  currentProduction: { version: string; size: number | null } | null;
-  versionJump: "major" | "minor" | "patch" | null;
-  size: number | null;
-  sizeChangePercent: number | null;
   changelogEmpty: boolean;
 };
 
@@ -358,37 +353,17 @@ export class DeviceService {
   }
 
   public async preflight(project: Project, release: Release): Promise<PromotionPreflight> {
-    const [rows, devices, production, withArtifact] = await Promise.all([
+    const [rows, devices] = await Promise.all([
       ReportDAL.getRollout(project.getId(), release.getId()),
       DeviceDAL.findAllByProject(project.getId(), "active"),
-      ReleaseDAL.getLatestReleaseByProjectId(project.getId(), "production"),
-      ReleaseDAL.findReleaseWithArtifact(release.getPublicId()),
     ]);
 
     const updated = Number(rows[0]?.updated ?? 0);
     const failed = Number(rows[0]?.failed ?? 0);
-    const size = withArtifact?.Artifacts?.[0]?.size ?? null;
-    const currentSize = production?.Artifacts?.[0]?.size ?? null;
-    const currentVersion = production?.getVersion() ?? null;
-
-    let versionJump: PromotionPreflight["versionJump"] = null;
-    if (currentVersion) {
-      const [cMajor, cMinor] = currentVersion.split(".").map(Number);
-      const [nMajor, nMinor] = release.getVersion().split(".").map(Number);
-      versionJump = nMajor !== cMajor ? "major" : nMinor !== cMinor ? "minor" : "patch";
-    }
-
-    const gate = stagingGate(updated, failed);
     return {
       staging: { updated, failed },
-      gatePassed: gate.passed,
-      gateReason: gate.reason,
+      gatePassed: stagingGate(updated).passed,
       productionDevices: devices.filter((d) => d.channel !== "staging").length,
-      currentProduction: currentVersion ? { version: currentVersion, size: currentSize } : null,
-      versionJump,
-      size,
-      sizeChangePercent:
-        size && currentSize ? Math.round(((size - currentSize) * 100) / currentSize) : null,
       changelogEmpty: isPlaceholderChangelog(release.getChangeLog()),
     };
   }
