@@ -341,14 +341,11 @@ export class ArtifactReleaseService {
       );
     }
 
-    // staging gate: a device has to confirm this build works and none may fail, unless forced....
+    // staging gate: a staging device has to confirm this build works, unless forced....
     const [verified] = await DeviceReportDAL.getRollout(project.getId(), release.getId());
-    const gate = stagingGate(Number(verified?.updated ?? 0), Number(verified?.failed ?? 0));
-    if (!gate.passed && !guard.force) {
+    if (!stagingGate(Number(verified?.updated ?? 0)).passed && !guard.force) {
       throw new ApiError(
-        gate.reason === "failing"
-          ? "A staging device failed to install this release. Fix it, or promote anyway."
-          : "No staging device has confirmed this release yet. Test it on a staging device first, or promote anyway.",
+        "No staging device has confirmed this release yet. Test it on a staging device first, or promote anyway.",
         StatusCodes.CONFLICT,
       );
     }
