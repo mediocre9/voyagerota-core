@@ -1,7 +1,7 @@
 import { db } from "../config/db.config";
 import { nanoid } from "nanoid";
 import bcrypt from "bcrypt";
-import type { PlanName } from "@config/plans";
+import { isPlanName, type PlanName } from "@config/plans";
 import {
   CreationOptional,
   DataTypes,
@@ -21,7 +21,6 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare is_revoked?: boolean;
   declare plan: CreationOptional<PlanName>;
   declare trial_ends_at: CreationOptional<Date | null>;
-  declare device_packs: CreationOptional<number>;
   declare deleted_at: CreationOptional<Date>;
 
   getId() {
@@ -48,16 +47,14 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
     return this.getDataValue("is_revoked");
   }
 
+  // anything that isn't a known plan (older names included) counts as free....
   getPlan(): PlanName {
-    return this.getDataValue("plan") ?? "maker";
+    const plan = this.getDataValue("plan");
+    return plan && isPlanName(plan) ? plan : "free";
   }
 
   getTrialEndsAt(): Date | null {
     return this.getDataValue("trial_ends_at") ?? null;
-  }
-
-  getDevicePacks(): number {
-    return this.getDataValue("device_packs") ?? 0;
   }
 }
 
@@ -113,16 +110,11 @@ User.init(
     plan: {
       type: DataTypes.STRING(16),
       allowNull: false,
-      defaultValue: "maker",
+      defaultValue: "free",
     },
     trial_ends_at: {
       type: DataTypes.DATE,
       allowNull: true,
-    },
-    device_packs: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
-      defaultValue: 0,
     },
     deleted_at: {
       type: DataTypes.DATE,

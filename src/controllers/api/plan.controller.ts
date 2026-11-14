@@ -1,4 +1,4 @@
-import { DEVICE_PACK_SIZE, PLANS, TRIAL_DAYS } from "@config/plans";
+import { PLANS, TRIAL_DAYS } from "@config/plans";
 import { UserLocals } from "@middlewares/auth";
 import * as PlanService from "@services/plan.service";
 import { NextFunction, Request, Response } from "express";
@@ -21,7 +21,6 @@ export class PlanController {
           paidPlan: plan.paidPlan,
           isTrial: plan.isTrial,
           trialEndsAt: plan.trialEndsAt,
-          devicePacks: plan.devicePacks,
         },
         limits: plan.limits,
         usage,
@@ -38,7 +37,6 @@ export class PlanController {
       response.status(StatusCodes.OK).json({
         plans: PLANS,
         trialDays: TRIAL_DAYS,
-        devicePackSize: DEVICE_PACK_SIZE,
         status: status(StatusCodes.OK),
       });
     } catch (error) {

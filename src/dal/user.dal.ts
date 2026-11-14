@@ -37,13 +37,12 @@ export async function findUserByEmail(email: string): Promise<Nullable<User>> {
 
 export async function updatePlan(
   userId: number,
-  data: { plan?: PlanName; trialEndsAt?: Date | null; devicePacks?: number },
+  data: { plan?: PlanName; trialEndsAt?: Date | null },
 ): Promise<void> {
   await User.update(
     {
       ...(data.plan ? { plan: data.plan } : {}),
       ...(data.trialEndsAt !== undefined ? { trial_ends_at: data.trialEndsAt } : {}),
-      ...(data.devicePacks !== undefined ? { device_packs: data.devicePacks } : {}),
     },
     { where: { id: userId } },
   );
