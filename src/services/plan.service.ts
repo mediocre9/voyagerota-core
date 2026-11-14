@@ -1,4 +1,4 @@
-import { ACTIVE_DEVICE_DAYS, DEVICE_PACK_SIZE, PlanLimits, PlanName, PLANS } from "@config/plans";
+import { ACTIVE_DEVICE_DAYS, PlanLimits, PlanName, PLANS } from "@config/plans";
 import * as DeviceDAL from "@dal/project.device.dal";
 import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
@@ -13,7 +13,6 @@ export type AccountPlan = {
   paidPlan: PlanName;
   isTrial: boolean;
   trialEndsAt: Date | null;
-  devicePacks: number;
   limits: PlanLimits;
 };
 
@@ -24,22 +23,14 @@ export type AccountUsage = {
   waitingDevices: number;
 };
 
-// a running trial lifts a maker account to pro, a paid plan always wins....
+// a running trial lifts a free account to pro, a paid plan always wins....
 export function getAccountPlan(user: User, now: Date = new Date()): AccountPlan {
   const paidPlan = user.getPlan();
   const trialEndsAt = user.getTrialEndsAt();
-  const isTrial = paidPlan === "maker" && !!trialEndsAt && trialEndsAt.getTime() > now.getTime();
+  const isTrial = paidPlan === "free" && !!trialEndsAt && trialEndsAt.getTime() > now.getTime();
   const name: PlanName = isTrial ? "pro" : paidPlan;
-  const devicePacks = name === "pro" ? user.getDevicePacks() : 0;
 
-  return {
-    name,
-    paidPlan,
-    isTrial,
-    trialEndsAt,
-    devicePacks,
-    limits: { ...PLANS[name], devices: PLANS[name].devices + devicePacks * DEVICE_PACK_SIZE },
-  };
+  return { name, paidPlan, isTrial, trialEndsAt, limits: PLANS[name] };
 }
 
 export async function getAccountUsage(user: User, now: Date = new Date()): Promise<AccountUsage> {
@@ -69,8 +60,8 @@ export async function getProjectPlan(project: Project): Promise<AccountPlan> {
 
 function _upgradeHint(plan: AccountPlan): string {
   return plan.name === "pro"
-    ? "Contact support for a higher limit."
-    : "Upgrade your plan to add more.";
+    ? "Need more? VoyagerOTA is open source, you can host your own."
+    : "Upgrade to Pro to add more.";
 }
 
 export async function assertCanCreateProject(user: User): Promise<void> {
@@ -112,10 +103,7 @@ export async function assertCanApproveDevice(project: Project): Promise<void> {
 export async function assertCanPreAddDevice(project: Project): Promise<void> {
   const plan = await getProjectPlan(project);
   if (!plan.limits.preAddDevices) {
-    throw new PlanLimitError(
-      "Adding devices by hardware ID is available on Standard and Pro.",
-      "preAddDevices",
-    );
+    throw new PlanLimitError("Adding devices by hardware ID is available on Pro.", "preAddDevices");
   }
   await assertCanApproveDevice(project);
 }

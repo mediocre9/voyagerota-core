@@ -1,4 +1,4 @@
-export type PlanName = "maker" | "standard" | "pro";
+export type PlanName = "free" | "pro";
 
 export type PlanLimits = {
   projects: number;
@@ -10,29 +10,21 @@ export type PlanLimits = {
   preAddDevices: boolean;
 };
 
+// generous where it costs little (releases, history), small where it costs the server (devices)....
 export const PLANS: Record<PlanName, PlanLimits> = {
-  maker: {
+  free: {
     projects: 1,
     devices: 5,
-    releasesPerProject: 10,
-    historyPerDevice: 10,
+    releasesPerProject: 25,
+    historyPerDevice: 20,
     emailAlerts: false,
     autoRevoke: false,
     preAddDevices: false,
   },
-  standard: {
-    projects: 3,
-    devices: 25,
-    releasesPerProject: 50,
-    historyPerDevice: 30,
-    emailAlerts: true,
-    autoRevoke: false,
-    preAddDevices: true,
-  },
   pro: {
-    projects: 10,
-    devices: 150,
-    releasesPerProject: 300,
+    projects: 3,
+    devices: 50,
+    releasesPerProject: 150,
     historyPerDevice: 100,
     emailAlerts: true,
     autoRevoke: true,
@@ -43,9 +35,6 @@ export const PLANS: Record<PlanName, PlanLimits> = {
 export const PLAN_NAMES = Object.keys(PLANS) as PlanName[];
 
 export const TRIAL_DAYS = 14;
-
-// extra device packs, pro only....
-export const DEVICE_PACK_SIZE = 50;
 
 // a device that hasn't checked in for this long stops counting against the plan....
 export const ACTIVE_DEVICE_DAYS = 30;

@@ -6,14 +6,12 @@ import * as PlanService from "@services/plan.service";
 import { db } from "@config/db.config";
 import { redis } from "@config/redis.connection.config";
 
-// npm run plan -- <email> <maker|standard|pro> [device packs] [--end-trial]....
-const [email, planName, packs, ...flags] = process.argv.slice(2);
+// npm run plan -- <email> <free|pro> [--end-trial]....
+const [email, planName, ...flags] = process.argv.slice(2);
 
 async function main(): Promise<void> {
   if (!email || !planName || !isPlanName(planName)) {
-    console.log(
-      `Usage: npm run plan -- <email> <${PLAN_NAMES.join("|")}> [device packs] [--end-trial]`,
-    );
+    console.log(`Usage: npm run plan -- <email> <${PLAN_NAMES.join("|")}> [--end-trial]`);
     process.exitCode = 1;
     return;
   }
@@ -27,9 +25,7 @@ async function main(): Promise<void> {
 
   await UserDAL.updatePlan(user.getId(), {
     plan: planName,
-    devicePacks:
-      packs && !packs.startsWith("--") ? Math.max(0, parseInt(packs, 10) || 0) : undefined,
-    trialEndsAt: [packs, ...flags].includes("--end-trial") ? null : undefined,
+    trialEndsAt: flags.includes("--end-trial") ? null : undefined,
   });
 
   const updated = await UserDAL.findUserByEmail(email);
