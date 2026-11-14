@@ -35,7 +35,7 @@ async function _restoreRecords({
         continue;
       }
 
-      const isFileOnTrashDirectory = StorageManager.isFileOnDirectory(artifact.getFileName(), {
+      const isFileOnTrashDirectory = await StorageManager.exists(artifact.getFileName(), {
         onDirectory: "trash",
       });
 
@@ -65,7 +65,7 @@ async function _softDelete({
         continue;
       }
 
-      const isFileOnStorageDirectory = StorageManager.isFileOnDirectory(artifact.getFileName(), {
+      const isFileOnStorageDirectory = await StorageManager.exists(artifact.getFileName(), {
         onDirectory: "storage",
       });
 

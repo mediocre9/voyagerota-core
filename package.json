@@ -15,11 +15,13 @@
     "dormant-project-cron": "npx tsx --watch --env-file=.env.development src/cron/dormant.project.cron.ts",
     "service-alert-cron": "npx tsx --watch --env-file=.env.development src/cron/service.status.alert.cron.ts",
     "seed": "npx tsx src/seed/seed.ts",
+    "storage:migrate": "npx tsx --env-file=.env.development src/scripts/migrate.storage.ts",
     "sandbox": "npx tsx --watch sandbox/sandbox.ts"
   },
   "author": "Mediocre9",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1169.0",
     "@clerk/express": "^2.1.88",
     "@getbrevo/brevo": "^6.0.3",
     "axios": "^1.13.2",
