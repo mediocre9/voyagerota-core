@@ -5,13 +5,12 @@ import {
   ReleaseIdPathParamSchema,
 } from "@schemas/release.schema";
 import { ArtifactStorageService, MAX_FILE_SIZE_IN_BYTES } from "@services/artifact.storage.service";
+import { StorageManager } from "@services/storage.manager";
 import { ApiError } from "@utils/error";
 import { NextFunction, Request, Response } from "express";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
-import * as fs from "node:fs";
 import { DeviceLocals } from "@middlewares/device.auth";
 import { Logger } from "@utils/logger";
-import { once } from "node:events";
 import { pipeline } from "node:stream/promises";
 import { inject, injectable } from "tsyringe";
 
@@ -67,8 +66,7 @@ export class ArtifactStorageController {
       );
 
       // open the file before sending headers so a missing blob becomes a proper error response....
-      const fileStream = fs.createReadStream(artifact.path);
-      await once(fileStream, "open");
+      const fileStream = await StorageManager.openReadStream(artifact.filename);
 
       response.setHeader("content-length", artifact.size);
       response.setHeader("content-type", "application/octet-stream");
@@ -94,8 +92,11 @@ export class ArtifactStorageController {
     response: Response,
     next: NextFunction,
   ): Promise<void> {
+    // a file refused before it is saved is removed here, save() cleans up after itself....
+    let rejectedFile: string | undefined;
     try {
       const params = await ReleaseIdPathParamSchema.parseAsync(request.params);
+      rejectedFile = request.file?.filename;
 
       // ! [PRI-1] this does not work investigate the issue.......
       if (!request.file) {
@@ -111,6 +112,7 @@ export class ArtifactStorageController {
         throw new ApiError("Max file size limit is 8mb!", StatusCodes.BAD_REQUEST);
       }
 
+      rejectedFile = undefined;
       const artifact = await this._storage.save(request.file, params);
       response.status(StatusCodes.CREATED).json({
         id: artifact.id,
@@ -121,6 +123,7 @@ export class ArtifactStorageController {
         },
       });
     } catch (error) {
+      if (rejectedFile) await StorageManager.discardUpload(rejectedFile);
       next(error);
     }
   }
