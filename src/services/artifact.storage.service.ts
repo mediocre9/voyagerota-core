@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
   },
 });
 
-export type DownloadableArtifact = { path: string; size: number };
+export type DownloadableArtifact = { path: string; size: number; filename: string };
 
 export const MAX_FILE_SIZE_IN_BYTES = 8e6; // 8mb in bytes....
 export const upload = multer({ storage: storage });
@@ -112,10 +112,26 @@ export class ArtifactStorageService {
     return {
       path: path.join(StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH, artifact.getFileName()),
       size: artifact.getFileSize(),
+      filename: artifact.getFileName(),
     };
   }
 
   public async save(
+    file: Pick<
+      Express.Multer.File,
+      "filename" | "originalname" | "mimetype" | "size" | "fieldname"
+    >,
+    param: ReleaseIdPathParam,
+  ): Promise<ArtifactDTO> {
+    try {
+      return await this._save(file, param);
+    } catch (error) {
+      await StorageManager.discardUpload(file.filename);
+      throw error;
+    }
+  }
+
+  private async _save(
     file: Pick<
       Express.Multer.File,
       "filename" | "originalname" | "mimetype" | "size" | "fieldname"
@@ -155,6 +171,9 @@ export class ArtifactStorageService {
         StatusCodes.CONFLICT,
       );
     }
+
+    // the file is in r2 before its record exists, a failure after this leaves an orphan the cron removes....
+    await StorageManager.commitUpload(file.filename);
 
     const artifact = await ArtifactDAL.createOrUpdate(release.getId(), {
       filename: file.filename,

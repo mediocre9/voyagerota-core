@@ -18,30 +18,40 @@ function _isRecentlyUploaded(filename: string): boolean {
 const CRON_EXPRESSION = isDevEnvironment() ? "*/180 * * * * *" : "0 0 0,3 * * 7";
 const DELAY = 100; // 100ms delay.....
 
-const OrphanFileCronJob = new CronJob(CRON_EXPRESSION, async () => {
+export async function runOrphanCleanup(): Promise<void> {
   Logger.info("Orphan file cleanup cron job inititated!");
   try {
-    const files = await StorageManager.getDirentFiles();
+    const files = await StorageManager.listFiles();
     for (const file of files) {
       if (_isRecentlyUploaded(file.name)) {
+        continue;
+      }
+
+      // *with r2 a file left on this machine is either already in the bucket or a rejected upload....
+      // *a recorded file that never reached the bucket is kept, run storage:migrate for it....
+      if (file.onDirectory === "incoming") {
+        const isInBucket =
+          (await StorageManager.exists(file.name, { onDirectory: "storage" })) ||
+          (await StorageManager.exists(file.name, { onDirectory: "trash" }));
+        const isRecorded = Boolean(await ArtifactDAL.findParanoidArtifactByFilename(file.name));
+
+        if (isInBucket || !isRecorded) {
+          await StorageManager.discardIncoming(file.name);
+          Logger.info(`${file.name} leftover upload removed from this machine!`);
+        } else {
+          Logger.warn(`${file.name} is only on this machine, run npm run storage:migrate`);
+        }
+        await setTimeout(DELAY);
         continue;
       }
 
       // *if artifact does not exist On records
       // *try to delete the eligible orphan files
       // *on either storage or trash directories....
-      const isOnStorage = StorageManager.isFileOnDirectory(file.name, {
-        onDirectory: "storage",
-      });
-
-      const isOnTrash = StorageManager.isFileOnDirectory(file.name, {
-        onDirectory: "trash",
-      });
-
       const artifact = await ArtifactDAL.findParanoidArtifactByFilename(file.name);
-      const isOrphan = !artifact && !file.isDirectory();
-      const isOrphanFileOnStorage = isOrphan && isOnStorage;
-      const isOrphanFileOnTrash = isOrphan && isOnTrash;
+      const isOrphan = !artifact;
+      const isOrphanFileOnStorage = isOrphan && file.onDirectory === "storage";
+      const isOrphanFileOnTrash = isOrphan && file.onDirectory === "trash";
 
       if (isOrphanFileOnStorage) {
         await StorageManager.destroy(file.name, { onDirectory: "storage" });
@@ -57,6 +67,8 @@ const OrphanFileCronJob = new CronJob(CRON_EXPRESSION, async () => {
   } catch (error) {
     Logger.error(error as string);
   }
-});
+}
+
+const OrphanFileCronJob = new CronJob(CRON_EXPRESSION, runOrphanCleanup);
 
 OrphanFileCronJob.start();

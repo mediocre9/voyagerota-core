@@ -6,6 +6,8 @@ import { Nullable } from "../types";
 import { Release } from "@models/release.model";
 import { Artifact } from "@models/artifact.model";
 import { User } from "@models/index";
+import { OutBox, OutBoxState } from "@models/outbox.model";
+import { db } from "@config/db.config";
 
 export type ProjectData = {
   userId: number;
@@ -287,5 +289,45 @@ export async function findProjectsDueForDeletion(
       dormant_notice: "final",
     },
     limit: limit,
+  });
+}
+
+// only projects whose files were already cleaned up, outbox rows and releases go first because of the foreign keys....
+export async function purgeCleanedUpProjects(date: Date): Promise<number> {
+  const projects = await Project.findAll({
+    where: { deleted_at: { [Op.lte]: date } },
+    attributes: ["id"],
+    paranoid: false,
+  });
+  if (projects.length === 0) return 0;
+
+  const pending = await OutBox.findAll({
+    where: {
+      project_id_fk: projects.map((project) => project.id!),
+      state: { [Op.ne]: OutBoxState.PROCESSED },
+    },
+    attributes: ["project_id_fk"],
+  });
+  const waiting = new Set(pending.map((outbox) => outbox.project_id_fk));
+  const ids = projects.map((project) => project.id!).filter((id) => !waiting.has(id));
+  if (ids.length === 0) return 0;
+
+  return await db.transaction(async (transaction) => {
+    await OutBox.destroy({
+      where: { project_id_fk: ids },
+      transaction: transaction,
+      force: true,
+    });
+    // artifacts and device rows cascade from here....
+    await Release.destroy({
+      where: { project_id_fk: ids },
+      transaction: transaction,
+      force: true,
+    });
+    return await Project.destroy({
+      where: { id: ids },
+      transaction: transaction,
+      force: true,
+    });
   });
 }
