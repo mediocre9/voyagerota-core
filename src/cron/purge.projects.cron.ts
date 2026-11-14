@@ -30,7 +30,7 @@ async function _purgeSoftDeletedProjects(): Promise<PurgeStatus> {
     ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
     : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);
 
-  const count = await ProjectDAL.purgeAllProjects(MAX_DAYS_IN_MILLISECONDS);
+  const count = await ProjectDAL.purgeCleanedUpProjects(MAX_DAYS_IN_MILLISECONDS);
   return { count: count, removed: count > 0 };
 }
 
@@ -77,6 +77,15 @@ async function _purgeStaleReleases(now: Date): Promise<PurgeStatus> {
   return { count: count, removed: count > 0 };
 }
 
+async function _safely(name: string, step: () => Promise<PurgeStatus>): Promise<PurgeStatus> {
+  try {
+    return await step();
+  } catch (error) {
+    Logger.error(`Purging ${name} failed: ${(error as Error).message}`);
+    return { count: 0, removed: false };
+  }
+}
+
 export async function runPurgeCron(now: Date = new Date()): Promise<void> {
   // * only one instance purges at a time....
   if ((await redis.set(LOCK_KEY, "1", "EX", 10 * 60, "NX")) !== "OK") {
@@ -87,9 +96,10 @@ export async function runPurgeCron(now: Date = new Date()): Promise<void> {
   try {
     Logger.info("Purging cron job inititated!");
 
-    const softDeletedProjects = await _purgeSoftDeletedProjects();
-    const dormantProjects = await _purgeDormantProjects(now);
-    const staleReleases = await _purgeStaleReleases(now);
+    // * each step on its own, one failing must not hold the others back....
+    const softDeletedProjects = await _safely("soft deleted projects", _purgeSoftDeletedProjects);
+    const dormantProjects = await _safely("dormant projects", () => _purgeDormantProjects(now));
+    const staleReleases = await _safely("stale releases", () => _purgeStaleReleases(now));
 
     if (softDeletedProjects.removed) {
       Logger.info(`Purged soft deleted projects${softDeletedProjects.count} projects!`);

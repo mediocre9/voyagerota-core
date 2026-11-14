@@ -10,8 +10,6 @@ import { StorageManager } from "@services/storage.manager";
 import { Logger } from "@utils/logger";
 import { computeElapsedTimeAsync } from "@utils/performance";
 import { Worker as ArtifactInspectionWorker, Job, UnrecoverableError } from "bullmq";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import * as ArtifactQueue from "./artifact.queue";
 
 const ___VYGR_STAGING_MARKER___ = "$2y$10$BsbB6jZbeQKLLnsnvGRJfOmGuG2Co0/LEDR4xO0Khnlvvm57c6Tai";
@@ -63,8 +61,7 @@ function _matchBinaryVersion(
 async function _inspectBinaryFile(
   job: Job<ArtifactQueue.TaskArtifactInputData, ArtifactQueue.TaskArtifactOutputData>,
 ): Promise<BuildInspectionResult> {
-  const pathToFile = path.join(StorageManager.DEFAULT_STORAGE_DIRECTORY_PATH, job.data.filename);
-  const contents = await fs.readFile(pathToFile, { encoding: "ascii" });
+  const contents = (await StorageManager.readFile(job.data.filename)).toString("ascii");
 
   let status: ArtifactBuildStatus = "unknown-build";
   if (contents.includes(token.get("staging-build")!)) {
