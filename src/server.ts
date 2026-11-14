@@ -9,6 +9,7 @@ import { keepApiRouter, projectApiRouter } from "@routes/apis/project.routes";
 import { releaseApiRouter } from "@routes/apis/release.routes";
 import { deviceApiRouter, projectDeviceApiRouter } from "@routes/apis/device.routes";
 import { ApiError, PlanLimitError } from "@utils/error";
+import { assertR2Settings, isR2Storage } from "@services/storage.manager";
 import { Logger } from "@utils/logger";
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
@@ -25,6 +26,16 @@ if (!isClerkEnabled()) {
     process.exit(1);
   }
   Logger.warn(`${message} Dashboard APIs will answer 401, device APIs keep working.`);
+}
+
+// firmware storage on r2 must be set up right before anything is uploaded or downloaded....
+if (isR2Storage()) {
+  try {
+    assertR2Settings();
+  } catch (error) {
+    Logger.error(`R2 storage: ${(error as Error).message}`);
+    if (!isDevEnvironment()) process.exit(1);
+  }
 }
 
 const app = express();

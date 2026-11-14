@@ -27,14 +27,35 @@ export function isR2Storage(): boolean {
 
 let _client: S3Client | null = null;
 
+// a wrong endpoint fails as an ssl handshake error, so the settings are checked up front....
+export function getR2Endpoint(): string {
+  const endpoint = process.env.R2_ENDPOINT?.trim();
+  if (endpoint) return endpoint.replace(/\/+$/, "");
+
+  const accountId = process.env.R2_ACCOUNT_ID?.trim() ?? "";
+  if (!/^[0-9a-f]{32}$/i.test(accountId)) {
+    throw new Error(
+      "R2_ACCOUNT_ID must be the 32 character Account ID from the R2 overview page, not a token or access key id.",
+    );
+  }
+  return `https://${accountId}.r2.cloudflarestorage.com`;
+}
+
+export function assertR2Settings(): void {
+  getR2Endpoint();
+  const missing = ["R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].filter(
+    (name) => !process.env[name]?.trim(),
+  );
+  if (missing.length) throw new Error(`Missing ${missing.join(", ")} for r2 storage.`);
+}
+
 function _r2(): S3Client {
   _client ??= new S3Client({
     region: "auto",
-    endpoint:
-      process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    endpoint: getR2Endpoint(),
     credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
+      accessKeyId: process.env.R2_ACCESS_KEY_ID?.trim() ?? "",
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY?.trim() ?? "",
     },
     forcePathStyle: true,
   });
@@ -42,7 +63,7 @@ function _r2(): S3Client {
 }
 
 function _bucket(): string {
-  return process.env.R2_BUCKET ?? "";
+  return process.env.R2_BUCKET?.trim() ?? "";
 }
 
 function _key(filename: string, onDirectory: "storage" | "trash"): string {
