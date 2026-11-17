@@ -42,8 +42,12 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// auth is bearer tokens only (no cookies), so an open cors policy is safe here....
-app.use(cors());
+// auth is bearer tokens only (no cookies), CORS_ORIGIN narrows it to the dashboard in production....
+// the dashboard is the only browser client, devices don't send an origin at all....
+const corsOrigins = process.env.CORS_ORIGIN?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins?.length ? corsOrigins : true }));
 app.use(helmet());
 app.use(express.json());
 app.use(morgan("combined"));
