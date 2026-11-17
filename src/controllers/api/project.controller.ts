@@ -47,6 +47,23 @@ export class ProjectController {
     }
   }
 
+  // deleted projects that can still be restored....
+  async getDeletedProjects(
+    _: Request,
+    response: Response<unknown, UserLocals>,
+    next: NextFunction,
+  ) {
+    try {
+      const projects = await this._project.getDeletedProjects(response.locals.user);
+      response.status(StatusCodes.OK).json({
+        projects,
+        status: { reason: getReasonPhrase(StatusCodes.OK), code: StatusCodes.OK },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getProjects(
     _: Request,
     response: Response<ProjectListResponse, UserLocals>,

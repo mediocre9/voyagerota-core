@@ -13,6 +13,10 @@ projectApiRouter
   .post(projectController.createProject.bind(projectController));
 
 projectApiRouter
+  .route("/projects/deleted")
+  .get(projectController.getDeletedProjects.bind(projectController));
+
+projectApiRouter
   .route("/projects/:projectId")
   .patch(projectController.restoreProject.bind(projectController))
   .delete(projectController.removeProject.bind(projectController));

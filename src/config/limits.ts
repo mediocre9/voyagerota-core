@@ -14,3 +14,6 @@ export const ACTIVE_DEVICE_DAYS = 30;
 // fair use, one check-in per device and a request budget per project....
 export const CHECK_IN_INTERVAL_SECONDS = 30;
 export const PROJECT_REQUESTS_PER_MINUTE = 300;
+
+// a deleted project can be restored for this long, then it is purged for good....
+export const DELETED_PROJECT_DAYS = 30;

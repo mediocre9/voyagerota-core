@@ -66,6 +66,15 @@ export function getReleaseDigestTemplate(items: ReleaseDigestItem[]): string {
     <p>Any change to a release, or Keep on its page, cancels its deletion. Releases in staging are never deleted automatically.</p>`;
 }
 
+export function getProjectDeletedByOwnerTemplate(
+  projectName: string,
+  restoreUntil: string,
+  projectsUrl: string,
+): string {
+  return `<p>Your project <strong>${projectName}</strong> was deleted. Its devices no longer receive updates.</p>
+    <p>Changed your mind? You can restore it until <strong>${restoreUntil}</strong> from <a href="${projectsUrl}">your projects</a>, under Recently deleted. After that it is removed for good.</p>`;
+}
+
 export type FailureAlertData = {
   projectName: string;
   version: string;
