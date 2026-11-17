@@ -39,7 +39,10 @@ export type RegistrationResult =
   | { status: "pending"; device: ProjectDeviceDTO }
   | { status: "active"; device: ProjectDeviceDTO; token: string };
 
-export type DeviceWithLastReport = ProjectDeviceDTO & { lastReport: DeviceReportDTO | null };
+export type DeviceWithLastReport = ProjectDeviceDTO & {
+  lastReport: DeviceReportDTO | null;
+  movingFrom: { id: string; name: string } | null;
+};
 
 export type ReleaseRollout = { updated: number; failed: number; running: number; alert: boolean };
 
@@ -255,14 +258,42 @@ export class DeviceService {
   public async list(project: Project, status?: DeviceStatus): Promise<DeviceWithLastReport[]> {
     const devices = await DeviceDAL.findAllByProject(project.getId(), status);
     const latest = await ReportDAL.findLatestByDevices(devices.map((d) => d.id));
+
+    // a waiting board that is already in another of the owner's projects is a move....
+    const waiting = devices.filter((d) => d.isPending()).map((d) => d.hardware_id);
+    const elsewhere = await DeviceDAL.findInOtherProjects(
+      project.getUserForeignKey(),
+      waiting,
+      project.getId(),
+    );
+    const from = new Map(
+      elsewhere.map((d) => [
+        d.hardware_id,
+        { id: d.Project!.getPublicId(), name: d.Project!.getProjectName() },
+      ]),
+    );
+
     return devices.map((device) => ({
       ...device.toDTO(),
       lastReport: latest.get(device.id)?.toDTO() ?? null,
+      movingFrom: device.isPending() ? (from.get(device.hardware_id) ?? null) : null,
     }));
   }
 
   public async add(project: Project, dto: DeviceCreateDTO): Promise<ProjectDeviceDTO> {
     await LimitsService.assertCanApproveDevice(project);
+
+    const [elsewhere] = await DeviceDAL.findInOtherProjects(
+      project.getUserForeignKey(),
+      [dto.hardwareId],
+      project.getId(),
+    );
+    if (elsewhere) {
+      throw new ApiError(
+        `This board is in ${elsewhere.Project!.getProjectName()}. Remove it there first, or approve it here when it checks in.`,
+        StatusCodes.CONFLICT,
+      );
+    }
 
     const existing = await DeviceDAL.findByHardwareId(project.getId(), dto.hardwareId);
     if (existing) {
@@ -297,7 +328,16 @@ export class DeviceService {
     if (device.isActive()) {
       throw new ApiError("Device is already approved!", StatusCodes.CONFLICT);
     }
-    if (project) await LimitsService.assertCanApproveDevice(project);
+    if (project) {
+      await LimitsService.assertCanApproveDevice(project);
+      // approving moves the board here, its old entry and history in the other project go....
+      const elsewhere = await DeviceDAL.findInOtherProjects(
+        project.getUserForeignKey(),
+        [device.hardware_id],
+        project.getId(),
+      );
+      for (const old of elsewhere) await this.remove(old);
+    }
     device.status = "active";
     device.approved_at = new Date();
     await device.save();
