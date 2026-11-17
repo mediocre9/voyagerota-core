@@ -28,9 +28,11 @@ async function _runServiceStatusCheck(service: ExternalService) {
 }
 
 // * let the service restart synchronously.....before doing anything....
+// * a non root user restarts through a narrow sudoers rule set up by deploy/setup.sh....
 function _restartService(service: ExternalService): void {
   try {
-    child_process.execSync(`systemctl restart ${service}`);
+    const sudo = process.getuid?.() === 0 ? "" : "sudo -n ";
+    child_process.execSync(`${sudo}systemctl restart ${service}`);
   } catch (error) {
     Logger.error(error as string);
   }

@@ -6,6 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --exec tsx --env-file=.env.development src/server.ts",
+    "dev:workers": "npx tsx --watch --env-file=.env.development src/workers.ts",
+    "dev:crons": "npx tsx --watch --env-file=.env.development src/crons.ts",
+    "start:api": "node --import tsx src/server.ts",
+    "start:workers": "node --import tsx src/workers.ts",
+    "start:crons": "node --import tsx src/crons.ts",
     "email-worker": "nodemon --exec tsx --env-file=.env.development src/queues/email.queue.worker.ts",
     "artifact-worker": "npx tsx --watch --env-file=.env.development src/queues/artifact.queue.worker.ts",
     "storage-worker": "npx tsx --watch --env-file=.env.development src/queues/storage.manager.queue.worker.ts",

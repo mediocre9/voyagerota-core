@@ -12,15 +12,20 @@ try {
 
   async function outboxRelayService(): Promise<void> {
     for await (const _ of setInterval(DELAY)) {
-      const outboxes = await OutBoxDAL.findAllPendingOutBoxes({ limit: 50 });
-      for (const outbox of outboxes) {
-        await _storageQueue.enQueueFile({
-          projectId: outbox.getForeignProjectId(),
-          outboxId: outbox.getId(),
-          event: outbox.getEvent(),
-        });
+      // one failed round (db or redis away for a moment) must not stop the relay for good....
+      try {
+        const outboxes = await OutBoxDAL.findAllPendingOutBoxes({ limit: 50 });
+        for (const outbox of outboxes) {
+          await _storageQueue.enQueueFile({
+            projectId: outbox.getForeignProjectId(),
+            outboxId: outbox.getId(),
+            event: outbox.getEvent(),
+          });
 
-        await OutBoxDAL.updateOutboxState(outbox.getId(), OutBoxState.PROCESSING);
+          await OutBoxDAL.updateOutboxState(outbox.getId(), OutBoxState.PROCESSING);
+        }
+      } catch (error) {
+        Logger.error(`Outbox relay round failed: ${(error as Error).message}`);
       }
     }
   }
