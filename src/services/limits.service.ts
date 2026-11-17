@@ -37,7 +37,7 @@ export async function assertCanCreateProject(user: User): Promise<void> {
   const projects = await ProjectDAL.countProjectsByUserId(user.getId());
   if (projects >= LIMITS.projects) {
     throw new LimitError(
-      `You can have up to ${LIMITS.projects} projects. Delete one you no longer use.`,
+      `Limit reached: ${LIMITS.projects} projects. Delete one to create another.`,
       "projects",
     );
   }
@@ -47,7 +47,7 @@ export async function assertCanCreateRelease(project: Project): Promise<void> {
   const releases = await ReleaseDAL.countReleases(project.getId(), "all");
   if (releases >= LIMITS.releasesPerProject) {
     throw new LimitError(
-      `A project can have up to ${LIMITS.releasesPerProject} releases. Delete an old release first.`,
+      `Limit reached: ${LIMITS.releasesPerProject} releases per project. Delete an old one first.`,
       "releases",
     );
   }
@@ -58,7 +58,7 @@ export async function assertCanApproveDevice(project: Project): Promise<void> {
   const { active } = await DeviceDAL.countProjectDevices(project.getId(), _activeSince());
   if (active >= LIMITS.devicesPerProject) {
     throw new LimitError(
-      `A project can have up to ${LIMITS.devicesPerProject} devices. Remove one you no longer use first.`,
+      `Limit reached: ${LIMITS.devicesPerProject} devices per project. Remove one first.`,
       "devices",
     );
   }

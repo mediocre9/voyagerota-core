@@ -1,4 +1,5 @@
 import { DeviceStatus, ProjectDevice } from "@models/project.device.model";
+import { Project } from "@models/project.model";
 import { Op } from "sequelize";
 import { Nullable } from "../types";
 
@@ -94,4 +95,24 @@ export async function countProjectDevices(
 
 export async function countWaitingByProject(projectId: number): Promise<number> {
   return await ProjectDevice.count({ where: { project_id_fk: projectId, status: "pending" } });
+}
+
+// the same boards in the owner's other projects, a board belongs to one project at a time....
+export async function findInOtherProjects(
+  userId: number,
+  hardwareIds: string[],
+  excludeProjectId: number,
+): Promise<readonly ProjectDevice[]> {
+  if (hardwareIds.length === 0) return [];
+  return await ProjectDevice.findAll({
+    where: { hardware_id: hardwareIds, project_id_fk: { [Op.ne]: excludeProjectId } },
+    include: [
+      {
+        model: Project,
+        attributes: ["public_id", "project_name"],
+        where: { user_id_fk: userId },
+        required: true,
+      },
+    ],
+  });
 }

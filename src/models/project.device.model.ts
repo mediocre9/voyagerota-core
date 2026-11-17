@@ -6,6 +6,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   Model,
+  NonAttribute,
 } from "sequelize";
 import { Project } from "./project.model";
 
@@ -45,6 +46,7 @@ export class ProjectDevice extends Model<
   declare approved_at: CreationOptional<Date | null>;
   declare created_at: CreationOptional<Date>;
   declare updated_at: CreationOptional<Date>;
+  declare Project?: NonAttribute<Project>;
 
   isPending() {
     return this.status === "pending";
