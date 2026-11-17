@@ -4,6 +4,7 @@ import * as ProjectDAL from "@dal/project.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import { Logger } from "@utils/logger";
 import { isDevEnvironment } from "@config/config";
+import { DELETED_PROJECT_DAYS } from "@config/limits";
 import { redis } from "@config/redis.connection.config";
 import { EmailTemplate, getTemplate, IEmailContentData } from "@config/email.client";
 import { EmailQueue } from "@queues/email.queue";
@@ -25,7 +26,7 @@ function _isDryRun(): boolean {
 }
 
 async function _purgeSoftDeletedProjects(): Promise<PurgeStatus> {
-  const MAX_DAYS = 90; //  90 days = 3 months.....
+  const MAX_DAYS = DELETED_PROJECT_DAYS; // 30 days to restore it.....
   const MAX_DAYS_IN_MILLISECONDS = isDevEnvironment()
     ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
     : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);

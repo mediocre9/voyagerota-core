@@ -13,6 +13,24 @@ import { RolloutSettings, rolloutSettings } from "./device.service";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
 import { readKeepToken } from "@utils/keep.token";
 import * as LimitsService from "./limits.service";
+import { DELETED_PROJECT_DAYS } from "@config/limits";
+import { getProjectDeletedByOwnerTemplate, IEmailContentData } from "@config/email.client";
+import { EmailQueue } from "@queues/email.queue";
+import { Logger } from "@utils/logger";
+
+const emailQueue = new EmailQueue<IEmailContentData>();
+
+export type DeletedProjectDTO = {
+  id: string;
+  projectName: string;
+  boardType: string;
+  deletedAt: Date;
+  purgeAt: Date;
+};
+
+function _purgeDate(deletedAt: Date): Date {
+  return new Date(deletedAt.getTime() + DELETED_PROJECT_DAYS * 24 * 60 * 60 * 1000);
+}
 
 export interface ProjectDTOFields {
   id: string;
@@ -92,6 +110,42 @@ export class ProjectService {
     }
 
     await this._softDeleteWithFiles(project);
+    await this._notifyDeleted(project, owner);
+  }
+
+  public async getDeletedProjects(owner: User): Promise<DeletedProjectDTO[]> {
+    const projects = await ProjectDAL.findDeletedProjectsByUserId(owner.getId());
+    return projects.map((project) => {
+      const deletedAt = new Date(project.getDataValue("deleted_at")!);
+      return {
+        id: project.getPublicId(),
+        projectName: project.getProjectName(),
+        boardType: project.getBoardType(),
+        deletedAt: deletedAt,
+        purgeAt: _purgeDate(deletedAt),
+      };
+    });
+  }
+
+  // a mistaken delete is easy to undo, the email says how long for....
+  private async _notifyDeleted(project: Project, owner: User): Promise<void> {
+    const projectsUrl = `${(process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "")}/projects`;
+    try {
+      await emailQueue.enqueueEmail(
+        {
+          subject: `${project.getProjectName()} was deleted`,
+          recipientEmail: owner.getEmail(),
+          body: getProjectDeletedByOwnerTemplate(
+            project.getProjectName(),
+            _purgeDate(new Date()).toDateString(),
+            projectsUrl,
+          ),
+        },
+        `project-deleted-by-owner-${project.getId()}-${Date.now()}`,
+      );
+    } catch (error) {
+      Logger.error(`Project deleted email not queued: ${(error as Error).message}`);
+    }
   }
 
   // dormant projects go the same way as a user delete, so their files are cleaned up too....
@@ -155,11 +209,19 @@ export class ProjectService {
       throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
     }
 
+    if (!project.getDataValue("deleted_at")) {
+      throw new ApiError("Project is not deleted!", StatusCodes.CONFLICT);
+    }
+
     await LimitsService.assertCanCreateProject(owner);
+    const name = await this._freeProjectName(owner.getId(), project.getProjectName());
 
     const transaction = await db.transaction();
     try {
       await project.restore({ transaction: transaction });
+      if (name !== project.getProjectName()) {
+        await ProjectDAL.renameProject(project.getId(), name, transaction);
+      }
       const releases = await ReleaseDAL.findSoftDeletedReleasesByProjectId(project.getId());
 
       for (const release of releases) {
@@ -179,5 +241,15 @@ export class ProjectService {
       await transaction.rollback();
       throw error;
     }
+  }
+
+  // a new project may have taken the name meanwhile, the restored one steps aside....
+  private async _freeProjectName(userId: number, name: string): Promise<string> {
+    if (!(await ProjectDAL.isProjectNameInUse(userId, name))) return name;
+    for (let n = 1; n < 100; n++) {
+      const candidate = n === 1 ? `${name} (restored)` : `${name} (restored ${n})`;
+      if (!(await ProjectDAL.isProjectNameInUse(userId, candidate))) return candidate;
+    }
+    return `${name} (restored ${Date.now()})`;
   }
 }

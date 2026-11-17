@@ -339,3 +339,24 @@ export async function purgeCleanedUpProjects(date: Date): Promise<number> {
     });
   });
 }
+
+// the owner's deleted projects that can still be restored, newest first....
+export async function findDeletedProjectsByUserId(userId: number): Promise<readonly Project[]> {
+  return await Project.findAll({
+    where: { user_id_fk: userId, deleted_at: { [Op.ne]: null } },
+    attributes: ["public_id", "project_name", "board_type", "deleted_at"],
+    order: [["deleted_at", "DESC"]],
+    paranoid: false,
+  });
+}
+
+export async function renameProject(
+  projectId: number,
+  name: string,
+  transaction?: Transaction,
+): Promise<void> {
+  await Project.update(
+    { project_name: name },
+    { where: { id: projectId }, transaction: transaction, paranoid: false },
+  );
+}
