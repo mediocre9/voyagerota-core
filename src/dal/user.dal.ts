@@ -1,4 +1,3 @@
-import { PlanName, TRIAL_DAYS } from "@config/plans";
 import { User } from "@models/user.model";
 import { Nullable } from "../types";
 
@@ -19,8 +18,6 @@ export async function findOrCreateUserByEmail(data: ExternalUserData): Promise<U
       username: data.username,
       email: data.email,
       picture_url: data.pictureUrl,
-      // every new account starts with a pro trial....
-      trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
     },
   });
 
@@ -29,21 +26,4 @@ export async function findOrCreateUserByEmail(data: ExternalUserData): Promise<U
 
 export async function findUserById(id: number): Promise<Nullable<User>> {
   return await User.findByPk(id);
-}
-
-export async function findUserByEmail(email: string): Promise<Nullable<User>> {
-  return await User.findOne({ where: { email } });
-}
-
-export async function updatePlan(
-  userId: number,
-  data: { plan?: PlanName; trialEndsAt?: Date | null },
-): Promise<void> {
-  await User.update(
-    {
-      ...(data.plan ? { plan: data.plan } : {}),
-      ...(data.trialEndsAt !== undefined ? { trial_ends_at: data.trialEndsAt } : {}),
-    },
-    { where: { id: userId } },
-  );
 }

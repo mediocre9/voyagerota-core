@@ -12,7 +12,7 @@ import { injectable } from "tsyringe";
 import { RolloutSettings, rolloutSettings } from "./device.service";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
 import { readKeepToken } from "@utils/keep.token";
-import * as PlanService from "./plan.service";
+import * as LimitsService from "./limits.service";
 
 export interface ProjectDTOFields {
   id: string;
@@ -38,7 +38,7 @@ export class ProjectService {
       throw new ApiError("User not found!", StatusCodes.NOT_FOUND);
     }
 
-    await PlanService.assertCanCreateProject(user);
+    await LimitsService.assertCanCreateProject(user);
 
     if (await ProjectDAL.isProjectNameInUse(user.getId(), projectName)) {
       throw new ApiError("Project with this name is already in use!", StatusCodes.CONFLICT);
@@ -155,7 +155,7 @@ export class ProjectService {
       throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
     }
 
-    await PlanService.assertCanCreateProject(owner);
+    await LimitsService.assertCanCreateProject(owner);
 
     const transaction = await db.transaction();
     try {

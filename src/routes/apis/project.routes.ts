@@ -1,10 +1,10 @@
 import { ProjectController } from "@controllers/api/project.controller";
-import { PlanController } from "@controllers/api/plan.controller";
+import { UsageController } from "@controllers/api/usage.controller";
 import express from "express";
 import { container } from "tsyringe";
 
 const projectController = container.resolve(ProjectController);
-const planController = container.resolve(PlanController);
+const usageController = container.resolve(UsageController);
 export const projectApiRouter = express.Router();
 
 projectApiRouter
@@ -17,7 +17,7 @@ projectApiRouter
   .patch(projectController.restoreProject.bind(projectController))
   .delete(projectController.removeProject.bind(projectController));
 
-projectApiRouter.route("/plan").get(planController.getPlan.bind(planController));
+projectApiRouter.route("/usage").get(usageController.getUsage.bind(usageController));
 
 projectApiRouter
   .route("/projects/:projectId/keep")
@@ -27,5 +27,3 @@ projectApiRouter
 export const keepApiRouter = express.Router();
 
 keepApiRouter.route("/keep").post(projectController.keepProjectByToken.bind(projectController));
-
-keepApiRouter.route("/plans").get(planController.getCatalog.bind(planController));

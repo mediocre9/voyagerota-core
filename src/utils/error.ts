@@ -15,20 +15,14 @@ export class ApiError extends Error {
   }
 }
 
-export type PlanLimitKind =
-  | "projects"
-  | "devices"
-  | "releases"
-  | "emailAlerts"
-  | "autoRevoke"
-  | "preAddDevices";
+export type LimitKind = "projects" | "devices" | "releases";
 
-// 402 so the dashboard can tell a plan limit apart from any other refusal....
-export class PlanLimitError extends ApiError {
+// 409 with the limit's name so the dashboard can explain which limit was reached....
+export class LimitError extends ApiError {
   constructor(
     message: string,
-    public readonly limit: PlanLimitKind,
+    public readonly limit: LimitKind,
   ) {
-    super(message, StatusCodes.PAYMENT_REQUIRED);
+    super(message, StatusCodes.CONFLICT);
   }
 }
