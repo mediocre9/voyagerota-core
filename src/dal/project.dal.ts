@@ -93,6 +93,14 @@ export async function findProjectsByUserId(userId: number): Promise<readonly Pro
   });
 }
 
+// just the ids, for counting things per project....
+export async function findProjectIdsByUserId(userId: number): Promise<readonly Project[]> {
+  return await Project.findAll({
+    where: { user_id_fk: userId },
+    attributes: ["id", "public_id"],
+  });
+}
+
 export async function countProjectsByUserId(userId: number): Promise<number> {
   return await Project.count({ where: { user_id_fk: userId } });
 }

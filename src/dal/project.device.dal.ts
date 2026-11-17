@@ -1,5 +1,4 @@
 import { DeviceStatus, ProjectDevice } from "@models/project.device.model";
-import { Project } from "@models/project.model";
 import { Op } from "sequelize";
 import { Nullable } from "../types";
 
@@ -75,23 +74,20 @@ export async function touch(
   );
 }
 
-// devices across all of the user's projects: active ones seen since the date, and the ones waiting....
-export async function countAccountDevices(
-  userId: number,
+// devices in one project: active ones seen since the date, and the ones waiting....
+export async function countProjectDevices(
+  projectId: number,
   activeSince: Date,
 ): Promise<{ active: number; waiting: number }> {
-  const include = [
-    { model: Project, attributes: [], where: { user_id_fk: userId }, required: true },
-  ];
   const [active, waiting] = await Promise.all([
     ProjectDevice.count({
-      include,
       where: {
+        project_id_fk: projectId,
         status: "active",
         [Op.or]: [{ last_seen_at: { [Op.gte]: activeSince } }, { last_seen_at: null }],
       },
     }),
-    ProjectDevice.count({ include, where: { status: "pending" } }),
+    ProjectDevice.count({ where: { project_id_fk: projectId, status: "pending" } }),
   ]);
   return { active, waiting };
 }

@@ -1,9 +1,9 @@
 // one free service, the same limits for every account....
 export const LIMITS = {
   projects: 3,
-  devices: 10,
-  releasesPerProject: 30,
-  historyPerDevice: 20,
+  devicesPerProject: 5,
+  releasesPerProject: 40,
+  historyPerDevice: 25,
 } as const;
 
 export type Limits = typeof LIMITS;
