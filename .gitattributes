@@ -1,2 +1,6 @@
 * linguist-vendored
 *.ts linguist-vendored=false linguist-detectable=true
+
+# server files keep linux line endings, even in a windows checkout....
+*.sh text eol=lf
+deploy/** text eol=lf
