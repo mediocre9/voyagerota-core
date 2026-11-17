@@ -1,7 +1,6 @@
 import { db } from "../config/db.config";
 import { nanoid } from "nanoid";
 import bcrypt from "bcrypt";
-import { isPlanName, type PlanName } from "@config/plans";
 import {
   CreationOptional,
   DataTypes,
@@ -19,8 +18,6 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare picture_url?: string;
   declare password?: string;
   declare is_revoked?: boolean;
-  declare plan: CreationOptional<PlanName>;
-  declare trial_ends_at: CreationOptional<Date | null>;
   declare deleted_at: CreationOptional<Date>;
 
   getId() {
@@ -45,16 +42,6 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
 
   isRevoked() {
     return this.getDataValue("is_revoked");
-  }
-
-  // anything that isn't a known plan (older names included) counts as free....
-  getPlan(): PlanName {
-    const plan = this.getDataValue("plan");
-    return plan && isPlanName(plan) ? plan : "free";
-  }
-
-  getTrialEndsAt(): Date | null {
-    return this.getDataValue("trial_ends_at") ?? null;
   }
 }
 
@@ -106,15 +93,6 @@ User.init(
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: false,
-    },
-    plan: {
-      type: DataTypes.STRING(16),
-      allowNull: false,
-      defaultValue: "free",
-    },
-    trial_ends_at: {
-      type: DataTypes.DATE,
-      allowNull: true,
     },
     deleted_at: {
       type: DataTypes.DATE,

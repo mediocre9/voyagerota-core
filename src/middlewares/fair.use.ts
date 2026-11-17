@@ -1,5 +1,5 @@
 import { isDevEnvironment } from "@config/config";
-import { CHECK_IN_INTERVAL_SECONDS, PROJECT_REQUESTS_PER_MINUTE } from "@config/plans";
+import { CHECK_IN_INTERVAL_SECONDS, PROJECT_REQUESTS_PER_MINUTE } from "@config/limits";
 import { redis } from "@config/redis.connection.config";
 import { DeviceLocals, ProjectKeyLocals } from "@middlewares/device.auth";
 import { NextFunction, Request, Response } from "express";
@@ -28,7 +28,7 @@ async function _isProjectOverBudget(projectId: number): Promise<number> {
   return count > PROJECT_REQUESTS_PER_MINUTE ? 60 - (Math.floor(Date.now() / 1000) % 60) : 0;
 }
 
-// one check-in per device per interval, the same on every plan....
+// one check-in per device per interval, the same for every account....
 export async function limitDeviceCheckIns(
   _: Request,
   response: Response<unknown, DeviceLocals>,

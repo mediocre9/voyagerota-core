@@ -21,7 +21,9 @@ import { container, injectable } from "tsyringe";
 import { db } from "@config/db.config";
 import { Release } from "@models/release.model";
 import { ArtifactReleaseService } from "./release.service";
-import * as PlanService from "./plan.service";
+import * as LimitsService from "./limits.service";
+import { LIMITS } from "@config/limits";
+import * as UserDAL from "@dal/user.dal";
 import { getFailureAlertTemplate, IEmailContentData } from "@config/email.client";
 import { EmailQueue } from "@queues/email.queue";
 
@@ -112,7 +114,7 @@ export class DeviceService {
 
     if (!device) {
       // waiting devices are capped per project so a flood of fake ids can't fill the table....
-      if (!(await PlanService.canQueueWaitingDevice(project))) {
+      if (!(await LimitsService.canQueueWaitingDevice(project))) {
         throw new ApiError(
           "Too many devices are waiting for approval in this project!",
           StatusCodes.TOO_MANY_REQUESTS,
@@ -207,8 +209,6 @@ export class DeviceService {
       }
     }
 
-    const plan = await PlanService.getProjectPlan(project);
-
     // report, history cap and the per release outcome are saved together....
     await db.transaction(async (transaction) => {
       await ReportDAL.create(
@@ -223,7 +223,7 @@ export class DeviceService {
         },
         transaction,
       );
-      await ReportDAL.pruneHistory(device.id, plan.limits.historyPerDevice, transaction);
+      await ReportDAL.pruneHistory(device.id, LIMITS.historyPerDevice, transaction);
       if (releaseId) {
         await ReportDAL.upsertOutcome(
           {
@@ -262,7 +262,7 @@ export class DeviceService {
   }
 
   public async add(project: Project, dto: DeviceCreateDTO): Promise<ProjectDeviceDTO> {
-    await PlanService.assertCanPreAddDevice(project);
+    await LimitsService.assertCanApproveDevice(project);
 
     const existing = await DeviceDAL.findByHardwareId(project.getId(), dto.hardwareId);
     if (existing) {
@@ -297,7 +297,7 @@ export class DeviceService {
     if (device.isActive()) {
       throw new ApiError("Device is already approved!", StatusCodes.CONFLICT);
     }
-    if (project) await PlanService.assertCanApproveDevice(project);
+    if (project) await LimitsService.assertCanApproveDevice(project);
     device.status = "active";
     device.approved_at = new Date();
     await device.save();
@@ -403,19 +403,16 @@ export class DeviceService {
     const failed = Number(row?.failed ?? 0);
     if (!isOverFailureThreshold(settings, updated, failed)) return;
 
-    const owner = await PlanService.getProjectOwner(project);
-    const plan = PlanService.getAccountPlan(owner);
-    const willRevoke = settings.autoRevoke && plan.limits.autoRevoke;
-
-    if (plan.limits.emailAlerts) {
+    const owner = project.User ?? (await UserDAL.findUserById(project.getUserForeignKey()));
+    if (owner) {
       await this._sendFailureAlert(owner.getEmail(), project, latest, {
         updated,
         failed,
-        willRevoke,
+        willRevoke: settings.autoRevoke,
       });
     }
 
-    if (!willRevoke) return;
+    if (!settings.autoRevoke) return;
 
     const withArtifact = await ReleaseDAL.findReleaseWithArtifact(latest.getPublicId());
     const artifactId = withArtifact?.Artifacts?.[0]?.public_id;

@@ -21,7 +21,7 @@ import { inject, injectable } from "tsyringe";
 import { ReleaseCacheService } from "./cache.service";
 import * as DeviceReportDAL from "@dal/device.report.dal";
 import { PromotionGuardDTO } from "@schemas/release.schema";
-import * as PlanService from "./plan.service";
+import * as LimitsService from "./limits.service";
 
 /**
  * @description currently under development
@@ -85,7 +85,7 @@ export class ArtifactReleaseService {
       throw new ApiError("Project not found!", StatusCodes.NOT_FOUND);
     }
 
-    await PlanService.assertCanCreateRelease(project);
+    await LimitsService.assertCanCreateRelease(project);
 
     if (!Utils.isSemver(version)) {
       throw new ApiError(
