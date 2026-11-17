@@ -1,0 +1,25 @@
+[Unit]
+Description=VoyagerOTA queue workers and outbox relay
+After=network-online.target mariadb.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=voyager
+Group=voyager
+WorkingDirectory=/opt/voyagerota/core
+EnvironmentFile=/opt/voyagerota/core/.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=192
+ExecStart=/usr/bin/node --import tsx src/workers.ts
+Restart=always
+RestartSec=5
+# a leak in one service can't take the whole droplet down....
+MemoryHigh=220M
+MemoryMax=260M
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voyager-workers
+
+[Install]
+WantedBy=multi-user.target
