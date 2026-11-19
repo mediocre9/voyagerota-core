@@ -11,8 +11,10 @@ export type ExternalUserData = {
   pictureUrl?: string;
 };
 
-export async function findOrCreateUserByEmail(data: ExternalUserData): Promise<User> {
-  const [user] = await User.findOrCreate({
+export async function findOrCreateUserByEmail(
+  data: ExternalUserData,
+): Promise<{ user: User; created: boolean }> {
+  const [user, created] = await User.findOrCreate({
     where: { email: data.email },
     defaults: {
       username: data.username,
@@ -21,7 +23,7 @@ export async function findOrCreateUserByEmail(data: ExternalUserData): Promise<U
     },
   });
 
-  return user;
+  return { user, created };
 }
 
 export async function findUserById(id: number): Promise<Nullable<User>> {

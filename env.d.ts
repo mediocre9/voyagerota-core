@@ -22,6 +22,9 @@ declare namespace NodeJS {
     BREVO_SMTP_SENDER_NAME: string;
     BREVO_SMTP_SENDER_EMAIL: string;
     BREVO_SMTP_RECEPIENT_DEV_EMAIL: string;
+    SUPPORT_EMAIL?: string;
+    SITE_URL?: string;
+    DOCS_URL?: string;
 
     CLERK_SECRET_KEY?: string;
     CLERK_PUBLISHABLE_KEY?: string;
