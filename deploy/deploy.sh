@@ -99,6 +99,14 @@ fi
 # the sites switch over in one step, visitors never see a half copied build....
 ln -sfn "$RELEASE" "$WEB_ROOT/current.new"
 mv -Tf "$WEB_ROOT/current.new" "$WEB_ROOT/current"
+# the shared nginx snippet comes from the repo, a broken one is put back before the reload....
+SNIPPET=/etc/nginx/snippets/voyagerota-static.conf
+cp -f "$SNIPPET" "$SNIPPET.previous" 2>/dev/null || true
+install -m 644 "$BASE/core/deploy/nginx/voyagerota-static.conf" "$SNIPPET"
+if ! nginx -t >/dev/null 2>&1; then
+  fail "nginx rejected the new snippet, keeping the previous one"
+  mv -f "$SNIPPET.previous" "$SNIPPET"
+fi
 nginx -t >/dev/null 2>&1 && systemctl reload nginx
 
 ls -1dt "$WEB_ROOT"/releases/* 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf
