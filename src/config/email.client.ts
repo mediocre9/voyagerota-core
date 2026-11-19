@@ -22,13 +22,11 @@ export function emailLinks() {
   const docs = (
     process.env.DOCS_URL ?? (isAppDomain ? app.replace("://app.", "://docs.") : `${app}/docs`)
   ).replace(/\/$/, "");
-  const support = process.env.SUPPORT_EMAIL?.trim();
   return {
     app,
     site,
     docs,
     privacy: `${site}/privacy`,
-    help: support ? `mailto:${support}` : "https://github.com/mediocre9/VoyagerOTAClient/issues",
   };
 }
 
@@ -178,7 +176,7 @@ export function renderEmailLayout(
 </tr></table></a></td></tr>
 <tr><td style="background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;padding:28px 24px;font-size:15px;line-height:1.6;color:#3f3f46;">${content}</td></tr>
 <tr><td style="padding:18px 4px 0;font-size:12px;line-height:1.6;color:#a1a1aa;">${escapeHtml(note)}<br>
-<a href="${links.site}" style="color:#71717a;">voyagerota.com</a>&nbsp;&nbsp;&nbsp;<a href="${links.privacy}" style="color:#71717a;">Privacy</a>&nbsp;&nbsp;&nbsp;<a href="${links.help}" style="color:#71717a;">Get help</a>
+<a href="${links.site}" style="color:#71717a;">voyagerota.com</a>&nbsp;&nbsp;&nbsp;<a href="${links.privacy}" style="color:#71717a;">Privacy</a>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
