@@ -21,6 +21,10 @@ projectApiRouter
   .patch(projectController.restoreProject.bind(projectController))
   .delete(projectController.removeProject.bind(projectController));
 
+projectApiRouter
+  .route("/projects/:projectId/delete-check")
+  .get(projectController.getDeleteCheck.bind(projectController));
+
 projectApiRouter.route("/usage").get(usageController.getUsage.bind(usageController));
 
 projectApiRouter

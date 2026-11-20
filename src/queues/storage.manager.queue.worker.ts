@@ -11,6 +11,8 @@ import { computeElapsedTimeAsync } from "@utils/performance";
 import * as OutBoxDAL from "@dal/outbox.dal";
 import * as ReleaseDAL from "@dal/release.dal";
 import * as ArtifactDAL from "@dal/artifact.dal";
+import * as ProjectDAL from "@dal/project.dal";
+import { isRestoreEnabled } from "@config/limits";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
 
 function _prepareMessage({ event }: Pick<FileStorageInputData, "event">): string {
@@ -69,11 +71,20 @@ async function _softDelete({
         onDirectory: "storage",
       });
 
-      if (isFileOnStorageDirectory) {
+      if (!isFileOnStorageDirectory) continue;
+      // with restore off nothing waits in the trash, the file goes for good....
+      if (isRestoreEnabled()) {
         await StorageManager.moveToTrashDirectory(artifact.getFileName());
+      } else {
+        await StorageManager.destroy(artifact.getFileName(), { onDirectory: "storage" });
       }
     }
     await OutBoxDAL.updateOutboxState(outboxId, OutBoxState.PROCESSED);
+
+    // and the project, its releases, artifacts and devices are removed right away too....
+    if (!isRestoreEnabled()) {
+      await ProjectDAL.purgeProjects([projectId]);
+    }
   } catch (error) {
     Logger.error((error as Error).message);
     await OutBoxDAL.updateOutboxState(outboxId, OutBoxState.FAILED);

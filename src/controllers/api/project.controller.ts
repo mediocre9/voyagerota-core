@@ -1,9 +1,14 @@
 import {
+  ProjectDeleteSchema,
   ProjectDTO,
   ProjectIdPathParam,
   ProjectIdPathParamSchema,
   ProjectSchema,
 } from "@schemas/project.schema";
+import { getAuth } from "@clerk/express";
+import { isClerkEnabled } from "@config/clerk.config";
+import { DELETE_REVERIFICATION } from "@config/limits";
+import { ApiError } from "@utils/error";
 import { UserLocals } from "@middlewares/auth";
 import { ProjectService } from "@services/project.service";
 import { NextFunction, Response, Request } from "express";
@@ -83,13 +88,54 @@ export class ProjectController {
     }
   }
 
-  async removeProject(
+  async getDeleteCheck(
     request: Request<ProjectIdPathParam>,
-    response: Response<ProjectDeletedResponse, UserLocals>,
+    response: Response<unknown, UserLocals>,
     next: NextFunction,
   ): Promise<void> {
     try {
       const param = await ProjectIdPathParamSchema.parseAsync(request.params);
+      const check = await this._project.getDeleteCheck(param.projectId, response.locals.user);
+      response.status(StatusCodes.OK).json({
+        check,
+        status: { reason: getReasonPhrase(StatusCodes.OK), code: StatusCodes.OK },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeProject(
+    request: Request<ProjectIdPathParam>,
+    response: Response<unknown, UserLocals>,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const param = await ProjectIdPathParamSchema.parseAsync(request.params);
+      const check = await this._project.getDeleteCheck(param.projectId, response.locals.user);
+
+      // the dashboard dialog is not the guard, this is: a project that reaches real boards
+      // needs the typed phrase and a fresh sign in....
+      if (check.atStake) {
+        const body = await ProjectDeleteSchema.parseAsync(request.body ?? {});
+        if (body.confirm !== check.phrase) {
+          throw new ApiError(`Type "${check.phrase}" to confirm.`, StatusCodes.BAD_REQUEST);
+        }
+        const verified =
+          isClerkEnabled() && getAuth(request).has({ reverification: DELETE_REVERIFICATION });
+        if (!verified) {
+          // clerk's own hint, the dashboard opens the sign in check and sends the request again....
+          response.status(StatusCodes.FORBIDDEN).json({
+            clerk_error: {
+              type: "forbidden",
+              reason: "reverification-error",
+              metadata: { reverification: DELETE_REVERIFICATION },
+            },
+          });
+          return;
+        }
+      }
+
       await this._project.softDeleteProject(param.projectId, response.locals.user);
       response.status(StatusCodes.ACCEPTED).json({
         message: "Project has been deleted successfully!",

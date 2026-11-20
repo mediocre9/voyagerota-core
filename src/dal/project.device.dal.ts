@@ -93,6 +93,10 @@ export async function countProjectDevices(
   return { active, waiting };
 }
 
+export async function countApprovedByProject(projectId: number): Promise<number> {
+  return await ProjectDevice.count({ where: { project_id_fk: projectId, status: "active" } });
+}
+
 export async function countWaitingByProject(projectId: number): Promise<number> {
   return await ProjectDevice.count({ where: { project_id_fk: projectId, status: "pending" } });
 }

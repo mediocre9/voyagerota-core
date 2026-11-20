@@ -1,6 +1,6 @@
 import { BrevoClient } from "@getbrevo/brevo";
 import type { DormantNotice } from "@models/project.model";
-import { LIMITS } from "@config/limits";
+import { DELETED_PROJECT_DAYS, isRestoreEnabled, LIMITS } from "@config/limits";
 
 // names come from users, so they never go into an email as html....
 export function escapeHtml(value: string | number): string {
@@ -68,7 +68,11 @@ export function getTemplate(
     "processs-restart-failed": `${data} service is down. Manual Restart and inspection is required!`,
     "processs-restart-successful": `${data} service restarted successfully.`,
     "project-deleted-notice": `<p>Your project <strong>${data}</strong> was deleted after a long time without activity.</p>
-    <p>Reply to this email within 90 days if you want it back.</p>`,
+    ${
+      isRestoreEnabled()
+        ? `<p>You can restore it from your projects within ${DELETED_PROJECT_DAYS} days.</p>`
+        : "<p>It was removed for good, with its releases and firmware files.</p>"
+    }`,
   };
 
   return messages[type];
@@ -103,6 +107,11 @@ export function getProjectDeletedByOwnerTemplate(
 ): string {
   return `<p>Your project <strong>${escapeHtml(projectName)}</strong> was deleted. Its devices no longer receive updates.</p>
     <p>Changed your mind? You can restore it until <strong>${restoreUntil}</strong> from <a href="${projectsUrl}">your projects</a>, under Recently deleted. After that it is removed for good.</p>`;
+}
+
+export function getProjectDeletedForGoodTemplate(projectName: string): string {
+  return `<p>Your project <strong>${escapeHtml(projectName)}</strong> was deleted for good, with its releases, firmware files and devices.</p>
+    <p>If you didn't do this, sign in and check your account right away.</p>`;
 }
 
 export type FailureAlertData = {
