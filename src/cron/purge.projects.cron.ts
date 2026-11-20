@@ -26,10 +26,12 @@ function _isDryRun(): boolean {
 }
 
 async function _purgeSoftDeletedProjects(): Promise<PurgeStatus> {
-  const MAX_DAYS = DELETED_PROJECT_DAYS; // 30 days to restore it.....
-  const MAX_DAYS_IN_MILLISECONDS = isDevEnvironment()
-    ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
-    : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);
+  // the restore window, with restore off (0) anything the worker missed goes on the next run....
+  const MAX_DAYS = DELETED_PROJECT_DAYS;
+  const MAX_DAYS_IN_MILLISECONDS =
+    isDevEnvironment() && MAX_DAYS > 0
+      ? new Date(Date.now() - 10 * 60 * 1000) // 10 minutes older records.....
+      : new Date(Date.now() - MAX_DAYS * 60 * 60 * 24 * 1000);
 
   const count = await ProjectDAL.purgeCleanedUpProjects(MAX_DAYS_IN_MILLISECONDS);
   return { count: count, removed: count > 0 };

@@ -318,6 +318,11 @@ export async function purgeCleanedUpProjects(date: Date): Promise<number> {
   });
   const waiting = new Set(pending.map((outbox) => outbox.project_id_fk));
   const ids = projects.map((project) => project.id!).filter((id) => !waiting.has(id));
+  return await purgeProjects(ids);
+}
+
+// removes soft deleted projects for good, outbox rows and releases first for the foreign keys....
+export async function purgeProjects(ids: number[]): Promise<number> {
   if (ids.length === 0) return 0;
 
   return await db.transaction(async (transaction) => {

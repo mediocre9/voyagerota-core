@@ -24,6 +24,11 @@ export const ProjectIdPathParamSchema = z.object({
     .trim(),
 });
 
+// the typed confirmation, only checked for projects that reach real boards....
+export const ProjectDeleteSchema = z.object({
+  confirm: z.string().trim().optional(),
+});
+
 export type ProjectIdQueryParam = z.infer<typeof ProjectIdQueryParamSchema>;
 export type ProjectIdPathParam = z.infer<typeof ProjectIdPathParamSchema>;
 export type ProjectDTO = z.infer<typeof ProjectSchema>;

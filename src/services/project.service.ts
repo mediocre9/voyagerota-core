@@ -13,8 +13,13 @@ import { RolloutSettings, rolloutSettings } from "./device.service";
 import { OutBoxEvent, OutBoxState } from "@models/outbox.model";
 import { readKeepToken } from "@utils/keep.token";
 import * as LimitsService from "./limits.service";
-import { DELETED_PROJECT_DAYS } from "@config/limits";
-import { getProjectDeletedByOwnerTemplate, IEmailContentData } from "@config/email.client";
+import { DELETED_PROJECT_DAYS, isRestoreEnabled } from "@config/limits";
+import * as ProjectDeviceDAL from "@dal/project.device.dal";
+import {
+  getProjectDeletedByOwnerTemplate,
+  getProjectDeletedForGoodTemplate,
+  IEmailContentData,
+} from "@config/email.client";
 import { EmailQueue } from "@queues/email.queue";
 import { Logger } from "@utils/logger";
 
@@ -26,6 +31,15 @@ export type DeletedProjectDTO = {
   boardType: string;
   deletedAt: Date;
   purgeAt: Date;
+};
+
+export type DeleteCheck = {
+  projectName: string;
+  productionRelease: boolean;
+  approvedDevices: number;
+  atStake: boolean;
+  phrase: string;
+  restoreDays: number;
 };
 
 function _purgeDate(deletedAt: Date): Date {
@@ -102,6 +116,27 @@ export class ProjectService {
     return project;
   }
 
+  // what a delete would cut off, a project that reaches real boards needs the strong check....
+  public async getDeleteCheck(projectId: string, owner: User): Promise<DeleteCheck> {
+    const project = await ProjectDAL.findProjectByPublicId(projectId);
+    if (!project || project.getUserForeignKey() !== owner.getId()) {
+      throw new ApiError("Project not found", StatusCodes.NOT_FOUND);
+    }
+
+    const [production, approvedDevices] = await Promise.all([
+      ReleaseDAL.getLatestProductionRelease(project.getId()),
+      ProjectDeviceDAL.countApprovedByProject(project.getId()),
+    ]);
+    return {
+      projectName: project.getProjectName(),
+      productionRelease: Boolean(production),
+      approvedDevices: approvedDevices,
+      atStake: Boolean(production) || approvedDevices > 0,
+      phrase: `delete ${project.getProjectName()}`,
+      restoreDays: DELETED_PROJECT_DAYS,
+    };
+  }
+
   public async softDeleteProject(projectId: string, owner: User): Promise<void> {
     const project = await ProjectDAL.findProjectByPublicId(projectId);
 
@@ -114,6 +149,7 @@ export class ProjectService {
   }
 
   public async getDeletedProjects(owner: User): Promise<DeletedProjectDTO[]> {
+    if (!isRestoreEnabled()) return [];
     const projects = await ProjectDAL.findDeletedProjectsByUserId(owner.getId());
     return projects.map((project) => {
       const deletedAt = new Date(project.getDataValue("deleted_at")!);
@@ -127,7 +163,7 @@ export class ProjectService {
     });
   }
 
-  // a mistaken delete is easy to undo, the email says how long for....
+  // with restore on the email says how long it can be undone, otherwise it confirms the delete....
   private async _notifyDeleted(project: Project, owner: User): Promise<void> {
     const projectsUrl = `${(process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "")}/projects`;
     try {
@@ -135,11 +171,13 @@ export class ProjectService {
         {
           subject: `${project.getProjectName()} was deleted`,
           recipientEmail: owner.getEmail(),
-          body: getProjectDeletedByOwnerTemplate(
-            project.getProjectName(),
-            _purgeDate(new Date()).toDateString(),
-            projectsUrl,
-          ),
+          body: isRestoreEnabled()
+            ? getProjectDeletedByOwnerTemplate(
+                project.getProjectName(),
+                _purgeDate(new Date()).toDateString(),
+                projectsUrl,
+              )
+            : getProjectDeletedForGoodTemplate(project.getProjectName()),
         },
         `project-deleted-by-owner-${project.getId()}-${Date.now()}`,
       );
@@ -202,7 +240,11 @@ export class ProjectService {
     }
   }
 
+  // kept for reuse, PROJECT_RESTORE_DAYS above 0 turns it back on....
   public async restoreProject(projectId: string, owner: User): Promise<void> {
+    if (!isRestoreEnabled()) {
+      throw new ApiError("Restoring deleted projects is turned off.", StatusCodes.GONE);
+    }
     const project = await ProjectDAL.findSoftDeletedProjectById(projectId);
 
     if (!project || project.getUserForeignKey() !== owner.getId()) {
