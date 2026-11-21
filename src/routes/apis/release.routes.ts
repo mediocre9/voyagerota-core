@@ -1,6 +1,7 @@
 import express from "express";
 import { ArtifactReleaseController } from "@controllers/api/release.controller";
 import { ArtifactStorageController } from "@controllers/api/artifact.storage.controller";
+import { isProjectOwner } from "@middlewares/auth";
 import { container } from "tsyringe";
 import { ArtifactStorageService, upload } from "@services/artifact.storage.service";
 import { ArtifactInspectionQueue } from "@queues/artifact.queue";
@@ -19,6 +20,8 @@ const releaseController = container.resolve(ArtifactReleaseController);
 const storageController = container.resolve(ArtifactStorageController);
 const deviceUpdateController = container.resolve(DeviceUpdateRegistryController);
 export const releaseApiRouter = express.Router();
+
+releaseApiRouter.use("/:projectId", isProjectOwner);
 
 releaseApiRouter
   .route("/:projectId/releases")

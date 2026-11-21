@@ -4,7 +4,7 @@ import {
   ProjectIdPathParamSchema,
   ProjectSchema,
 } from "@schemas/project.schema";
-import { UserIdQueryParam, UserIdQueryParamSchema } from "@schemas/user.schema";
+import { requireSessionUser } from "@middlewares/auth";
 import { ProjectService } from "@services/project.service";
 import { NextFunction, Response, Request } from "express";
 import { inject, injectable } from "tsyringe";
@@ -24,8 +24,9 @@ export class ProjectController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { userId, projectName, boardType } = await ProjectSchema.parseAsync(request.body);
-      const project = await this._project.createProject(userId, projectName, boardType);
+      const { projectName, boardType } = await ProjectSchema.parseAsync(request.body);
+      const user = requireSessionUser(request);
+      const project = await this._project.createProject(user.getPublicId(), projectName, boardType);
       response.status(StatusCodes.CREATED).json({
         project: {
           publicId: project.public_id!,
@@ -44,13 +45,13 @@ export class ProjectController {
   }
 
   async getProjects(
-    request: Request<undefined, undefined, undefined, UserIdQueryParam>,
+    request: Request<undefined, undefined, undefined, Record<string, never>>,
     response: Response<ProjectListResponse>,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { userId } = await UserIdQueryParamSchema.parseAsync(request.query);
-      const projects = await this._project.getAllProjects(userId);
+      const user = requireSessionUser(request);
+      const projects = await this._project.getAllProjects(user.getPublicId());
       response.status(StatusCodes.OK).json({
         projects: projects,
         status: {

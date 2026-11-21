@@ -1,9 +1,12 @@
 import { ProjectController } from "@controllers/api/project.controller";
+import { isProjectOwner } from "@middlewares/auth";
 import express from "express";
 import { container } from "tsyringe";
 
 const projectController = container.resolve(ProjectController);
 export const projectApiRouter = express.Router();
+
+projectApiRouter.use("/projects/:projectId", isProjectOwner);
 
 projectApiRouter
   .route("/projects")
